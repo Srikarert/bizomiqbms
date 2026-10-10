@@ -21,6 +21,13 @@ React + TypeScript + Vite, Tailwind CSS v4, shadcn/ui, Lucide, Supabase (Postgre
    select id, email, 'admin' from auth.users where email = 'you@bizomiq.com';
    ```
 
+   Link each login to its "Handled by" name (Srikar, Nikhil or Jethin) so new
+   leads default to that person and "Handled by me" works:
+
+   ```sql
+   update public.team_members set name = 'Jethin' where email = 'jethin@example.com';
+   ```
+
 6. `npm run dev`
 
 ## Access model

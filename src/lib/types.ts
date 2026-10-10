@@ -11,6 +11,9 @@ export const PROJECT_STATUSES = ["Not Started", "Planning", "In Progress", "Revi
 export const PRIORITIES = ["Low", "Medium", "High", "Urgent"] as const
 export const TASK_STATUSES = ["To Do", "In Progress", "Done"] as const
 export const FOLLOW_UP_STATUSES = ["Pending", "Completed", "Rescheduled", "Cancelled"] as const
+// Team members a record can be "handled by" (the owner column). Keep in sync with
+// the CHECK constraints in 20261010120000_handled_by.sql.
+export const HANDLERS = ["Srikar", "Nikhil", "Jethin"] as const
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number]
 export type ClientStatus = (typeof CLIENT_STATUSES)[number]
@@ -18,6 +21,7 @@ export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 export type Priority = (typeof PRIORITIES)[number]
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 export type FollowUpStatus = (typeof FOLLOW_UP_STATUSES)[number]
+export type Handler = (typeof HANDLERS)[number]
 
 interface Timestamps {
   created_at: string
@@ -40,7 +44,7 @@ export interface Lead extends Timestamps {
   category_id: string | null
   deal_value: number
   follow_up_date: string | null
-  owner: string | null
+  owner: Handler | null // "Handled by"
   notes: string | null
   // Generated columns (read-only), used for duplicate detection.
   email_normalized: string | null
@@ -77,6 +81,7 @@ export interface Client extends Timestamps {
   status: ClientStatus
   notes: string | null
   lead_id: string | null
+  owner: Handler | null
 }
 
 export interface Project extends Timestamps {
@@ -90,6 +95,7 @@ export interface Project extends Timestamps {
   deadline: string | null
   budget: number
   progress: number
+  owner: Handler | null
 }
 
 export interface Task extends Timestamps {
@@ -101,6 +107,7 @@ export interface Task extends Timestamps {
   due_date: string | null
   priority: Priority
   status: TaskStatus
+  owner: Handler | null
 }
 
 // Table name is "followups" (no underscore).
@@ -112,6 +119,7 @@ export interface FollowUp extends Timestamps {
   time: string | null
   notes: string | null
   status: FollowUpStatus
+  owner: Handler | null
 }
 
 export interface Activity {

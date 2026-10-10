@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
-import { LEAD_STATUSES, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
+import { HANDLERS, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -14,8 +14,9 @@ import { deriveLeadStatus } from "./status"
 type FormState = Record<Exclude<keyof LeadInput, "status">, string> & { status: LeadStatus }
 
 const NO_CATEGORY = "__none__"
+const UNASSIGNED = "__none__"
 
-const toForm = (l?: Lead, defaultCategoryId?: string | null): FormState => ({
+const toForm = (l?: Lead, defaultCategoryId?: string | null, defaultOwner?: Handler | null): FormState => ({
   company_name: l?.company_name ?? "",
   contact_name: l?.contact_name ?? "",
   phone: l?.phone ?? "",
@@ -30,6 +31,7 @@ const toForm = (l?: Lead, defaultCategoryId?: string | null): FormState => ({
   follow_up_date: l?.follow_up_date ?? "",
   notes: l?.notes ?? "",
   category_id: (l ? l.category_id : defaultCategoryId) ?? "",
+  owner: (l ? l.owner : defaultOwner) ?? "",
 })
 
 function validate(f: FormState): Partial<Record<keyof FormState, string>> {
@@ -51,10 +53,11 @@ interface Props {
   lead?: Lead // Edit when set, create otherwise.
   categories: LeadCategory[]
   defaultCategoryId?: string | null // Preselected for new leads.
+  defaultOwner?: Handler | null // Preselected "Handled by" for new leads.
   onSaved: (lead: Lead) => void
 }
 
-export function LeadFormDialog({ open, onOpenChange, lead, categories, defaultCategoryId, onSaved }: Props) {
+export function LeadFormDialog({ open, onOpenChange, lead, categories, defaultCategoryId, defaultOwner, onSaved }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
@@ -68,6 +71,7 @@ export function LeadFormDialog({ open, onOpenChange, lead, categories, defaultCa
             lead={lead}
             categories={categories}
             defaultCategoryId={defaultCategoryId}
+            defaultOwner={defaultOwner}
             onSaved={onSaved}
           />
         )}
@@ -76,8 +80,8 @@ export function LeadFormDialog({ open, onOpenChange, lead, categories, defaultCa
   )
 }
 
-function LeadForm({ lead, categories, defaultCategoryId, onSaved }: Omit<Props, "open" | "onOpenChange">) {
-  const [form, setForm] = useState(() => toForm(lead, defaultCategoryId))
+function LeadForm({ lead, categories, defaultCategoryId, defaultOwner, onSaved }: Omit<Props, "open" | "onOpenChange">) {
+  const [form, setForm] = useState(() => toForm(lead, defaultCategoryId, defaultOwner))
   const [errors, setErrors] = useState<ReturnType<typeof validate>>({})
   const [saving, setSaving] = useState(false)
   // Until the user picks a status by hand, follow the call remark.
@@ -106,6 +110,7 @@ function LeadForm({ lead, categories, defaultCategoryId, onSaved }: Omit<Props, 
       follow_up_date: blankToNull(form.follow_up_date),
       notes: blankToNull(form.notes),
       category_id: form.category_id || null,
+      owner: (form.owner || null) as Handler | null,
     }
     setSaving(true)
     try {
@@ -141,6 +146,15 @@ function LeadForm({ lead, categories, defaultCategoryId, onSaved }: Omit<Props, 
             <SelectContent>
               <SelectItem value={NO_CATEGORY}>Uncategorized</SelectItem>
               {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        ))}
+        {field("owner", "Handled by", (
+          <Select value={form.owner || UNASSIGNED} onValueChange={(v) => set("owner", v === UNASSIGNED ? "" : v)}>
+            <SelectTrigger id="owner" className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+              {HANDLERS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
             </SelectContent>
           </Select>
         ))}

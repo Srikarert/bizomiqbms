@@ -5,7 +5,7 @@ import type { Lead, LeadCategory } from "@/lib/types"
 export type LeadInput = Pick<
   Lead,
   | "company_name" | "contact_name" | "phone" | "alternate_phone" | "email" | "website"
-  | "location" | "source" | "call_status" | "status" | "deal_value" | "follow_up_date" | "notes" | "category_id"
+  | "location" | "source" | "call_status" | "status" | "deal_value" | "follow_up_date" | "notes" | "category_id" | "owner"
 >
 
 const PAGE = 1000 // PostgREST default max rows per request.

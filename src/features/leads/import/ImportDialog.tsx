@@ -2,7 +2,8 @@ import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import { FileSpreadsheet, Loader2, Upload } from "lucide-react"
 import { supabase } from "@/lib/supabase"
-import type { Lead, LeadCategory } from "@/lib/types"
+import { HANDLERS, type Handler, type Lead, type LeadCategory } from "@/lib/types"
+import { useMyName } from "@/lib/team"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -18,6 +19,7 @@ import {
 const TEMPLATE_NAME = "Last used"
 const IGNORE = "__ignore__"
 const NO_CATEGORY = "__none__"
+const UNASSIGNED = "__none__"
 
 interface Props {
   open: boolean
@@ -41,6 +43,10 @@ export function ImportDialog({
   // undefined = follow the category currently selected on the leads page.
   const [chosenCategory, setChosenCategory] = useState<string | null>()
   const categoryId = chosenCategory === undefined ? defaultCategoryId : chosenCategory
+  // undefined = the signed-in person.
+  const myName = useMyName()
+  const [chosenOwner, setChosenOwner] = useState<Handler | null>()
+  const owner = chosenOwner === undefined ? myName : chosenOwner
   const [createMissing, setCreateMissing] = useState(true)
   const [reading, setReading] = useState(false)
   const [importing, setImporting] = useState<{ done: number; total: number } | null>(null)
@@ -71,9 +77,9 @@ export function ImportDialog({
   const prepared = useMemo(
     () =>
       sheet && mapping.includes("company_name")
-        ? prepareRows(sheet, mapping, existing, { source, categoryId, categories: previewCategories })
+        ? prepareRows(sheet, mapping, existing, { source, categoryId, categories: previewCategories, owner })
         : [],
-    [sheet, mapping, existing, source, categoryId, previewCategories],
+    [sheet, mapping, existing, source, categoryId, previewCategories, owner],
   )
   const invalid = prepared.filter((r) => r.error)
   const duplicates = prepared.filter((r) => !r.error && r.duplicateOf)
@@ -88,6 +94,7 @@ export function ImportDialog({
     setMapping([])
     setImporting(null)
     setChosenCategory(undefined)
+    setChosenOwner(undefined)
   }
 
   async function onFile(file: File) {
@@ -131,7 +138,7 @@ export function ImportDialog({
         onCategoriesCreated(created)
         // Re-run with the new categories so those rows pick them up.
         const all = [...categories, ...created]
-        rows = toImportOf(prepareRows(sheet, mapping, existing, { source, categoryId, categories: all }), skipDuplicates)
+        rows = toImportOf(prepareRows(sheet, mapping, existing, { source, categoryId, categories: all, owner }), skipDuplicates)
           .map((r) => r.lead)
       }
       const n = await insertLeads(rows, (done) => setImporting({ done, total: rows.length }))
@@ -218,6 +225,20 @@ export function ImportDialog({
               </Select>
               {mapping.includes("category") && (
                 <span className="text-xs text-muted-foreground">Rows with their own Category column value use that instead.</span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <Label htmlFor="import-owner">Handled by</Label>
+              <Select value={owner ?? UNASSIGNED} onValueChange={(v) => setChosenOwner(v === UNASSIGNED ? null : (v as Handler))}>
+                <SelectTrigger id="import-owner" size="sm" className="w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                  {HANDLERS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              {mapping.includes("owner") && (
+                <span className="text-xs text-muted-foreground">Rows with their own Handled by value use that instead.</span>
               )}
             </div>
 

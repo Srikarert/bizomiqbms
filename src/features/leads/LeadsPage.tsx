@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { ArrowLeft, FolderOpen, Loader2, MoreHorizontal, Pencil, Plus, Search, Settings2, Sprout, Trash2, Upload } from "lucide-react"
+import { ArrowLeft, FolderOpen, Loader2, MoreHorizontal, Pencil, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { LEAD_STATUSES, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
+import { useMyName } from "@/lib/team"
+import { HANDLERS, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
 import { PageHeader } from "@/components/layout/PageHeader"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -31,6 +32,8 @@ type Tab = "all" | "normal" | "green"
 const PAGE_SIZE = 50
 const ALL = "__all__"
 const UNCATEGORIZED = "__none__"
+const MINE = "__me__"
+const UNASSIGNED = "__none__"
 
 // Marking a lead green moves it to the first interested stage; moving it back
 // to normal means it was contacted but isn't interested (yet).
@@ -48,6 +51,8 @@ export function LeadsPage() {
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>(ALL)
+  const [ownerFilter, setOwnerFilter] = useState<string>(ALL)
+  const myName = useMyName()
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [editing, setEditing] = useState<Lead | "new" | null>(null)
@@ -112,13 +117,17 @@ export function LeadsPage() {
       if (tab !== "all" && isGreen(l.status) !== (tab === "green")) return false
       if (!matchesCategory(l)) return false
       if (statusFilter !== ALL && l.status !== statusFilter) return false
+      if (ownerFilter !== ALL) {
+        const want = ownerFilter === MINE ? myName : ownerFilter === UNASSIGNED ? null : ownerFilter
+        if (l.owner !== want) return false
+      }
       if (!q) return true
-      const hay = [l.company_name, l.contact_name, l.location, l.call_status, l.email, l.notes]
+      const hay = [l.company_name, l.contact_name, l.location, l.call_status, l.email, l.notes, l.owner]
         .filter(Boolean).join(" ").toLowerCase()
       if (hay.includes(q)) return true
       return qDigits.length >= 3 && [l.phone, l.alternate_phone].some((p) => p?.replace(/\D/g, "").includes(qDigits))
     })
-  }, [leads, tab, statusFilter, query, matchesCategory])
+  }, [leads, tab, statusFilter, ownerFilter, myName, query, matchesCategory])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pageCount - 1)
@@ -145,6 +154,20 @@ export function LeadsPage() {
       setSelected(new Set())
       const name = categoryId ? categoryName.get(categoryId) : "Uncategorized"
       toast.success(`${ids.length === 1 ? "Lead" : `${ids.length} leads`} moved to ${name}`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not update")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function setOwner(ids: string[], owner: Handler | null) {
+    setBusy(true)
+    try {
+      replaceLeads(ids.length === 1 ? [await updateLead(ids[0], { owner })] : await updateLeads(ids, { owner }))
+      setSelected(new Set())
+      const n = ids.length === 1 ? "Lead" : `${ids.length} leads`
+      toast.success(owner ? `${n} assigned to ${owner}` : `${n} unassigned`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update")
     } finally {
@@ -247,6 +270,15 @@ export function LeadsPage() {
       <DropdownMenuItem onSelect={() => setCategoriesOpen(true)}><Settings2 /> Manage categories…</DropdownMenuItem>
     </>
   )
+  const ownerMenu = (ids: string[], current?: Handler | null) => (
+    <>
+      {HANDLERS.map((h) => (
+        <DropdownMenuItem key={h} disabled={current === h} onSelect={() => setOwner(ids, h)}>{h}</DropdownMenuItem>
+      ))}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem disabled={current === null} onSelect={() => setOwner(ids, null)}>Unassigned</DropdownMenuItem>
+    </>
+  )
   const selectedIds = [...selected]
 
   return (
@@ -306,6 +338,22 @@ export function LeadsPage() {
             {stageOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select
+          value={ownerFilter}
+          onValueChange={(v) => {
+            setOwnerFilter(v)
+            setSelected(new Set())
+            setPage(0)
+          }}
+        >
+          <SelectTrigger className="w-40" aria-label="Handled by"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Anyone</SelectItem>
+            {myName && <SelectItem value={MINE}>Handled by me</SelectItem>}
+            {HANDLERS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+            <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by category">
@@ -357,6 +405,15 @@ export function LeadsPage() {
               {categoryMenu(selectedIds)}
             </DropdownMenuContent>
           </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" disabled={busy}><UserRound /> Assign to</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel>Assign {selected.size} to…</DropdownMenuLabel>
+              {ownerMenu(selectedIds)}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" variant="destructive" disabled={busy} onClick={() => setConfirmDelete(selectedIds)}>
             <Trash2 /> Delete
           </Button>
@@ -375,8 +432,8 @@ export function LeadsPage() {
         <div className="flex justify-center p-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {query || statusFilter !== ALL
-            ? "No leads match your search."
+          {query || statusFilter !== ALL || ownerFilter !== ALL
+            ? "No leads match your filters."
             : categoryFilter !== ALL
               ? "No leads in this category yet. Add one, import a sheet, or move leads here with Set category."
               : tab === "green"
@@ -408,6 +465,7 @@ export function LeadsPage() {
                   <TableHead>Location</TableHead>
                   <TableHead>Call status</TableHead>
                   <TableHead>Stage</TableHead>
+                  <TableHead>Handled by</TableHead>
                   <TableHead>Follow-up</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
@@ -462,6 +520,21 @@ export function LeadsPage() {
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    <TableCell>
+                      <Select value={l.owner ?? UNASSIGNED} onValueChange={(v) => setOwner([l.id], v === UNASSIGNED ? null : (v as Handler))}>
+                        <SelectTrigger
+                          size="sm"
+                          aria-label="Handled by"
+                          className={cn("h-6 w-auto gap-1 border-transparent px-2 text-xs", !l.owner && "text-muted-foreground")}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {HANDLERS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                          <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(l.follow_up_date)}</TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -478,6 +551,10 @@ export function LeadsPage() {
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger><FolderOpen /> Category</DropdownMenuSubTrigger>
                             <DropdownMenuSubContent>{categoryMenu([l.id], l.category_id)}</DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger><UserRound /> Handled by</DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>{ownerMenu([l.id], l.owner)}</DropdownMenuSubContent>
                           </DropdownMenuSub>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete([l.id])}><Trash2 /> Delete</DropdownMenuItem>
@@ -514,6 +591,7 @@ export function LeadsPage() {
         lead={editing === "new" || editing === null ? undefined : editing}
         categories={categories}
         defaultCategoryId={activeCategoryId}
+        defaultOwner={myName}
         onSaved={(saved) => {
           setLeads((ls) => (ls?.some((l) => l.id === saved.id) ? ls.map((l) => (l.id === saved.id ? saved : l)) : [saved, ...(ls ?? [])]))
           setEditing(null)

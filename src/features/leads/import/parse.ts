@@ -1,4 +1,4 @@
-import type { Lead, LeadCategory } from "@/lib/types"
+import { HANDLERS, type Handler, type Lead, type LeadCategory } from "@/lib/types"
 import type { LeadInput } from "../api"
 import { deriveLeadStatus } from "../status"
 
@@ -8,6 +8,7 @@ import { deriveLeadStatus } from "../status"
 export const IMPORT_FIELDS = [
   { key: "alternate_phone", label: "Alternate phone", synonyms: ["alternate phone", "alt phone", "alternate number", "alternate mobile", "alternate", "alt number", "phone 2", "mobile 2", "secondary phone", "other number", "landline", "whatsapp"] },
   { key: "contact_name", label: "Contact person", synonyms: ["contact name", "contact person", "person", "owner name", "contact", "proprietor"] },
+  { key: "owner", label: "Handled by", synonyms: ["handled by", "assigned to", "assigned", "owner", "sales person", "salesperson", "executive", "caller", "called by"] },
   { key: "company_name", label: "Name", synonyms: ["name", "company", "company name", "business", "business name", "lead name", "firm", "shop", "organisation", "organization", "store"] },
   { key: "phone", label: "Phone number", synonyms: ["phone", "phone number", "mobile", "mobile number", "contact number", "number", "ph", "cell", "phone no", "mobile no"] },
   { key: "location", label: "Location", synonyms: ["location", "area", "address", "city", "place", "locality"] },
@@ -127,6 +128,13 @@ export interface PrepareOptions {
   source: string
   categoryId: string | null // Applied to every row without its own category.
   categories: LeadCategory[]
+  owner: Handler | null // Applied to every row without its own "Handled by" value.
+}
+
+// "srikar", "Srikar Akula" -> "Srikar"; anything else is unknown.
+export function matchHandler(raw: string): Handler | undefined {
+  const first = raw.trim().toLowerCase().split(/\s+/)[0]
+  return HANDLERS.find((h) => h.toLowerCase() === first)
 }
 
 export function prepareRows(sheet: Sheet, mapping: Mapping, existing: Lead[], opts: PrepareOptions): PreparedRow[] {
@@ -168,6 +176,7 @@ export function prepareRows(sheet: Sheet, mapping: Mapping, existing: Lead[], op
       follow_up_date: null,
       notes: text("notes"),
       category_id: opts.categoryId,
+      owner: opts.owner,
     }
 
     // Bad optional values don't cost the lead: blank the field, keep the text in notes.
@@ -185,6 +194,12 @@ export function prepareRows(sheet: Sheet, mapping: Mapping, existing: Lead[], op
       const id = categoryByName.get(rawCategory.toLowerCase())
       if (id) lead.category_id = id
       else warnings.push(`unknown category "${rawCategory}"`)
+    }
+    const rawOwner = text("owner")
+    if (rawOwner) {
+      const h = matchHandler(rawOwner)
+      if (h) lead.owner = h
+      else warnings.push(`unknown "Handled by" "${rawOwner}"`)
     }
     const rawValue = text("deal_value")
     if (rawValue) {
