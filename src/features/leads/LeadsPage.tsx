@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { ArrowLeft, Download, Flag, FolderOpen, Loader2, MoreHorizontal, Pencil, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
+import { ArrowLeft, Download, FolderOpen, Loader2, MoreHorizontal, Pencil, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMyName } from "@/lib/team"
-import {
-  HANDLERS, LEAD_PRIORITIES, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadPriority, type LeadStatus,
-} from "@/lib/types"
+import { HANDLERS, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
 import { PageHeader } from "@/components/layout/PageHeader"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -28,8 +26,8 @@ import { exportLeadsToExcel } from "./export"
 import { ImportDialog } from "./import/ImportDialog"
 import { LeadFormDialog } from "./LeadFormDialog"
 import {
-  COMMON_REMARKS, GREEN_STATUSES, NORMAL_STATUSES, PRIORITY_DOT, PRIORITY_LABELS, PRIORITY_STYLES, REMARKS_LIST_ID,
-  STATUS_STYLES, deriveLeadStatus, isGreen,
+  COMMON_REMARKS, GREEN_GROUPS, GREEN_STATUSES, NORMAL_STATUSES, REMARKS_LIST_ID, STATUS_STYLES, deriveLeadStatus,
+  greenGroup, isGreen, type GreenGroup,
 } from "./status"
 
 type Tab = "all" | "normal" | "green"
@@ -38,7 +36,6 @@ const ALL = "__all__"
 const UNCATEGORIZED = "__none__"
 const MINE = "__me__"
 const UNASSIGNED = "__none__"
-const NO_PRIORITY = "__none__"
 
 // Marking a lead green moves it to the first interested stage; moving it back
 // to normal means it was contacted but isn't interested (yet).
@@ -50,12 +47,13 @@ export function LeadsPage() {
   const [categories, setCategories] = useState<LeadCategory[]>([])
   const [loadError, setLoadError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>("all")
+  // Sub-filter inside the Green tab: Normal / Not sure / High priority.
+  const [greenFilter, setGreenFilter] = useState<GreenGroup | typeof ALL>(ALL)
   const [categoryFilter, setCategoryFilter] = useState<string>(ALL)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>(ALL)
   const [ownerFilter, setOwnerFilter] = useState<string>(ALL)
-  const [priorityFilter, setPriorityFilter] = useState<string>(ALL)
   const myName = useMyName()
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -92,8 +90,10 @@ export function LeadsPage() {
   // Tab counts follow the selected category; category counts follow the tab.
   const counts = useMemo(() => {
     const inCategory = (leads ?? []).filter(matchesCategory)
-    const green = inCategory.filter((l) => isGreen(l.status)).length
-    return { all: inCategory.length, green, normal: inCategory.length - green }
+    const greenLeads = inCategory.filter((l) => isGreen(l.status))
+    const groups = new Map<GreenGroup, number>()
+    for (const l of greenLeads) groups.set(greenGroup(l.status), (groups.get(greenGroup(l.status)) ?? 0) + 1)
+    return { all: inCategory.length, green: greenLeads.length, normal: inCategory.length - greenLeads.length, groups }
   }, [leads, matchesCategory])
 
   const categoryCounts = useMemo(() => {
@@ -119,20 +119,20 @@ export function LeadsPage() {
     const qDigits = q.replace(/\D/g, "")
     return (leads ?? []).filter((l) => {
       if (tab !== "all" && isGreen(l.status) !== (tab === "green")) return false
+      if (tab === "green" && greenFilter !== ALL && greenGroup(l.status) !== greenFilter) return false
       if (!matchesCategory(l)) return false
       if (statusFilter !== ALL && l.status !== statusFilter) return false
       if (ownerFilter !== ALL) {
         const want = ownerFilter === MINE ? myName : ownerFilter === UNASSIGNED ? null : ownerFilter
         if (l.owner !== want) return false
       }
-      if (priorityFilter !== ALL && l.priority !== (priorityFilter === NO_PRIORITY ? null : priorityFilter)) return false
       if (!q) return true
       const hay = [l.company_name, l.contact_name, l.location, l.call_status, l.email, l.notes, l.owner]
         .filter(Boolean).join(" ").toLowerCase()
       if (hay.includes(q)) return true
       return qDigits.length >= 3 && [l.phone, l.alternate_phone].some((p) => p?.replace(/\D/g, "").includes(qDigits))
     })
-  }, [leads, tab, statusFilter, ownerFilter, priorityFilter, myName, query, matchesCategory])
+  }, [leads, tab, greenFilter, statusFilter, ownerFilter, myName, query, matchesCategory])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pageCount - 1)
@@ -141,6 +141,7 @@ export function LeadsPage() {
 
   function switchTab(t: Tab) {
     setTab(t)
+    setGreenFilter(ALL)
     setStatusFilter(ALL)
     setSelected(new Set())
     setPage(0)
@@ -180,20 +181,6 @@ export function LeadsPage() {
     }
   }
 
-  async function setPriority(ids: string[], priority: LeadPriority | null) {
-    setBusy(true)
-    try {
-      replaceLeads(ids.length === 1 ? [await updateLead(ids[0], { priority })] : await updateLeads(ids, { priority }))
-      setSelected(new Set())
-      const n = ids.length === 1 ? "Lead" : `${ids.length} leads`
-      toast.success(priority ? `${n} marked ${PRIORITY_LABELS[priority]}` : `${n}: priority cleared`)
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not update")
-    } finally {
-      setBusy(false)
-    }
-  }
-
   async function doExport(rows: Lead[]) {
     if (!rows.length) return
     setBusy(true)
@@ -217,8 +204,7 @@ export function LeadsPage() {
     try {
       replaceLeads(ids.length === 1 ? [await updateLead(ids[0], { status })] : await updateLeads(ids, { status }))
       setSelected(new Set())
-      const n = ids.length === 1 ? "Lead" : `${ids.length} leads`
-      toast.success(isGreen(status) ? `${n} moved to green leads` : `${n} moved to normal leads`)
+      toast.success(`${ids.length === 1 ? "Lead" : `${ids.length} leads`} ${moveMessage(status)}`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update")
     } finally {
@@ -233,9 +219,7 @@ export function LeadsPage() {
     const status = !callStatus || isGreen(lead.status) ? lead.status : deriveLeadStatus(callStatus)
     try {
       replaceLeads([await updateLead(lead.id, { call_status: callStatus, status })])
-      if (isGreen(status) !== isGreen(lead.status)) {
-        toast.success(isGreen(status) ? `${lead.company_name} moved to green leads` : `${lead.company_name} moved to normal leads`)
-      }
+      if (isGreen(status) !== isGreen(lead.status)) toast.success(`${lead.company_name} ${moveMessage(status)}`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update")
       throw e
@@ -257,8 +241,8 @@ export function LeadsPage() {
   async function changeStage(lead: Lead, status: LeadStatus) {
     try {
       replaceLeads([await updateLead(lead.id, { status })])
-      if (isGreen(status) !== isGreen(lead.status)) {
-        toast.success(isGreen(status) ? "Moved to green leads" : "Moved to normal leads")
+      if (isGreen(status) !== isGreen(lead.status) || greenGroup(status) !== greenGroup(lead.status)) {
+        toast.success(`${lead.company_name} ${moveMessage(status)}`)
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update")
@@ -301,18 +285,6 @@ export function LeadsPage() {
       <DropdownMenuItem disabled={current === null} onSelect={() => setCategory(ids, null)}>Uncategorized</DropdownMenuItem>
       <DropdownMenuSeparator />
       <DropdownMenuItem onSelect={() => setCategoriesOpen(true)}><Settings2 /> Manage categories…</DropdownMenuItem>
-    </>
-  )
-  const priorityMenu = (ids: string[], current?: LeadPriority | null) => (
-    <>
-      {LEAD_PRIORITIES.map((p) => (
-        <DropdownMenuItem key={p} disabled={current === p} onSelect={() => setPriority(ids, p)}>
-          <span className={cn("size-2 rounded-full", PRIORITY_DOT[p])} aria-hidden />
-          {PRIORITY_LABELS[p]}
-        </DropdownMenuItem>
-      ))}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem disabled={current === null} onSelect={() => setPriority(ids, null)}>No priority</DropdownMenuItem>
     </>
   )
   const ownerMenu = (ids: string[], current?: Handler | null) => (
@@ -407,27 +379,36 @@ export function LeadsPage() {
             <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
           </SelectContent>
         </Select>
-        <Select
-          value={priorityFilter}
-          onValueChange={(v) => {
-            setPriorityFilter(v)
-            setSelected(new Set())
-            setPage(0)
-          }}
-        >
-          <SelectTrigger className="w-40" aria-label="Priority"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Any priority</SelectItem>
-            {LEAD_PRIORITIES.map((p) => (
-              <SelectItem key={p} value={p}>
-                <span className={cn("size-2 rounded-full", PRIORITY_DOT[p])} aria-hidden />
-                {PRIORITY_LABELS[p]}
-              </SelectItem>
-            ))}
-            <SelectItem value={NO_PRIORITY}>No priority</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
+
+      {tab === "green" && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter green leads">
+          {[{ key: ALL, label: "All green", dot: "bg-success" }, ...GREEN_GROUPS].map((g) => {
+            const count = g.key === ALL ? counts.green : (counts.groups.get(g.key as GreenGroup) ?? 0)
+            return (
+              <button
+                key={g.key}
+                type="button"
+                aria-pressed={greenFilter === g.key}
+                onClick={() => {
+                  setGreenFilter(g.key as GreenGroup | typeof ALL)
+                  setStatusFilter(ALL)
+                  setSelected(new Set())
+                  setPage(0)
+                }}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-xs text-muted-foreground transition-colors hover:text-foreground",
+                  greenFilter === g.key && "border-foreground text-foreground",
+                )}
+              >
+                <span className={cn("size-2 rounded-full", g.dot)} aria-hidden />
+                {g.label}
+                <span className="tabular-nums opacity-70">{count}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       <div className="mb-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by category">
         {[
@@ -464,6 +445,17 @@ export function LeadsPage() {
               <Sprout className="text-success" /> Mark green
             </Button>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" disabled={busy}><Sprout className="text-success" /> Set green stage</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuLabel>Move {selected.size} to…</DropdownMenuLabel>
+              {GREEN_STATUSES.map((s) => (
+                <DropdownMenuItem key={s} onSelect={() => setStatus(selectedIds, s)}>{s}</DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           {selectedLeads.some((l) => isGreen(l.status)) && (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setStatus(selectedLeads.filter((l) => isGreen(l.status)).map((l) => l.id), NORMAL_STAGE)}>
               <ArrowLeft /> Move to normal
@@ -487,15 +479,6 @@ export function LeadsPage() {
               {ownerMenu(selectedIds)}
             </DropdownMenuContent>
           </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" disabled={busy}><Flag /> Set priority</Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuLabel>Mark {selected.size} as…</DropdownMenuLabel>
-              {priorityMenu(selectedIds)}
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => doExport(filtered.filter((l) => selected.has(l.id)))}>
             <Download /> Export
           </Button>
@@ -517,7 +500,7 @@ export function LeadsPage() {
         <div className="flex justify-center p-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {query || statusFilter !== ALL || ownerFilter !== ALL || priorityFilter !== ALL
+          {query || statusFilter !== ALL || ownerFilter !== ALL
             ? "No leads match your filters."
             : categoryFilter !== ALL
               ? "No leads in this category yet. Add one, import a sheet, or move leads here with Set category."
@@ -551,7 +534,6 @@ export function LeadsPage() {
                   <TableHead>Location</TableHead>
                   <TableHead>Call status</TableHead>
                   <TableHead>Stage</TableHead>
-                  <TableHead>Priority</TableHead>
                   <TableHead>Handled by</TableHead>
                   <TableHead>Follow-up</TableHead>
                   <TableHead className="w-10" />
@@ -610,29 +592,6 @@ export function LeadsPage() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <Select value={l.priority ?? NO_PRIORITY} onValueChange={(v) => setPriority([l.id], v === NO_PRIORITY ? null : (v as LeadPriority))}>
-                        <SelectTrigger
-                          size="sm"
-                          aria-label="Priority"
-                          className={cn(
-                            "h-6 w-auto gap-1 rounded-full border-transparent px-2 text-xs",
-                            l.priority ? PRIORITY_STYLES[l.priority] : "text-muted-foreground",
-                          )}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LEAD_PRIORITIES.map((p) => (
-                            <SelectItem key={p} value={p}>
-                              <span className={cn("size-2 rounded-full", PRIORITY_DOT[p])} aria-hidden />
-                              {PRIORITY_LABELS[p]}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value={NO_PRIORITY}>—</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
                       <Select value={l.owner ?? UNASSIGNED} onValueChange={(v) => setOwner([l.id], v === UNASSIGNED ? null : (v as Handler))}>
                         <SelectTrigger
                           size="sm"
@@ -661,12 +620,16 @@ export function LeadsPage() {
                             <DropdownMenuItem onSelect={() => setStatus([l.id], GREEN_STAGE)}><Sprout className="text-success" /> Mark green</DropdownMenuItem>
                           )}
                           <DropdownMenuSub>
-                            <DropdownMenuSubTrigger><FolderOpen /> Category</DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent>{categoryMenu([l.id], l.category_id)}</DropdownMenuSubContent>
+                            <DropdownMenuSubTrigger><Sprout className="text-success" /> Stage</DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              {GREEN_STATUSES.map((s) => (
+                                <DropdownMenuItem key={s} disabled={l.status === s} onSelect={() => setStatus([l.id], s)}>{s}</DropdownMenuItem>
+                              ))}
+                            </DropdownMenuSubContent>
                           </DropdownMenuSub>
                           <DropdownMenuSub>
-                            <DropdownMenuSubTrigger><Flag /> Priority</DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent>{priorityMenu([l.id], l.priority)}</DropdownMenuSubContent>
+                            <DropdownMenuSubTrigger><FolderOpen /> Category</DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>{categoryMenu([l.id], l.category_id)}</DropdownMenuSubContent>
                           </DropdownMenuSub>
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger><UserRound /> Handled by</DropdownMenuSubTrigger>
@@ -766,6 +729,13 @@ export function LeadsPage() {
       </AlertDialog>
     </>
   )
+}
+
+// "moved to green leads (High priority)", "moved to normal leads", ...
+function moveMessage(status: LeadStatus) {
+  if (!isGreen(status)) return "moved to normal leads"
+  const group = GREEN_GROUPS.find((g) => g.key === greenGroup(status))
+  return group && group.key !== "normal" ? `moved to green leads (${group.label})` : "moved to green leads"
 }
 
 function formatDate(d: string | null) {

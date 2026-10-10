@@ -1,6 +1,6 @@
 import { HANDLERS, type Handler, type Lead, type LeadCategory } from "@/lib/types"
 import type { LeadInput } from "../api"
-import { deriveLeadStatus, parsePriority } from "../status"
+import { deriveLeadStatus } from "../status"
 
 // Lead fields a spreadsheet column can be mapped to, in auto-match priority
 // order: more specific fields first, so "Alternate phone" beats "phone" and
@@ -9,7 +9,6 @@ export const IMPORT_FIELDS = [
   { key: "alternate_phone", label: "Alternate phone", synonyms: ["alternate phone", "alt phone", "alternate number", "alternate mobile", "alternate", "alt number", "phone 2", "mobile 2", "secondary phone", "other number", "landline", "whatsapp"] },
   { key: "contact_name", label: "Contact person", synonyms: ["contact name", "contact person", "person", "owner name", "contact", "proprietor"] },
   { key: "owner", label: "Handled by", synonyms: ["handled by", "assigned to", "assigned", "owner", "sales person", "salesperson", "executive", "caller", "called by"] },
-  { key: "priority", label: "Priority", synonyms: ["priority", "lead priority", "hot", "temperature", "interest level"] },
   { key: "company_name", label: "Name", synonyms: ["name", "company", "company name", "business", "business name", "lead name", "firm", "shop", "organisation", "organization", "store"] },
   { key: "phone", label: "Phone number", synonyms: ["phone", "phone number", "mobile", "mobile number", "contact number", "number", "ph", "cell", "phone no", "mobile no"] },
   { key: "location", label: "Location", synonyms: ["location", "area", "address", "city", "place", "locality"] },
@@ -178,7 +177,6 @@ export function prepareRows(sheet: Sheet, mapping: Mapping, existing: Lead[], op
       notes: text("notes"),
       category_id: opts.categoryId,
       owner: opts.owner,
-      priority: null,
     }
 
     // Bad optional values don't cost the lead: blank the field, keep the text in notes.
@@ -202,12 +200,6 @@ export function prepareRows(sheet: Sheet, mapping: Mapping, existing: Lead[], op
       const h = matchHandler(rawOwner)
       if (h) lead.owner = h
       else warnings.push(`unknown "Handled by" "${rawOwner}"`)
-    }
-    const rawPriority = text("priority")
-    if (rawPriority) {
-      const p = parsePriority(rawPriority)
-      if (p) lead.priority = p
-      else warnings.push(`unknown priority "${rawPriority}"`)
     }
     const rawValue = text("deal_value")
     if (rawValue) {

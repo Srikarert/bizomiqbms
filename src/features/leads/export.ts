@@ -1,5 +1,4 @@
 import type { Lead, LeadCategory } from "@/lib/types"
-import { PRIORITY_LABELS } from "./status"
 
 const dateCell = (d: string | null) => (d ? new Date(`${d}T00:00:00`) : "")
 
@@ -19,7 +18,6 @@ export async function exportLeadsToExcel(leads: Lead[], categories: LeadCategory
     Location: l.location ?? "",
     "Call status": l.call_status ?? "",
     Stage: l.status,
-    Priority: l.priority ? PRIORITY_LABELS[l.priority] : "",
     "Handled by": l.owner ?? "",
     "Follow-up date": dateCell(l.follow_up_date),
     "Deal value": l.deal_value || "",

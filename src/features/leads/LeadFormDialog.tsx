@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
-import { HANDLERS, LEAD_PRIORITIES, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadPriority, type LeadStatus } from "@/lib/types"
+import { HANDLERS, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -9,13 +9,12 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { createLead, updateLead, type LeadInput } from "./api"
-import { PRIORITY_DOT, PRIORITY_LABELS, deriveLeadStatus } from "./status"
+import { deriveLeadStatus } from "./status"
 
 type FormState = Record<Exclude<keyof LeadInput, "status">, string> & { status: LeadStatus }
 
 const NO_CATEGORY = "__none__"
 const UNASSIGNED = "__none__"
-const NO_PRIORITY = "__none__"
 
 const toForm = (l?: Lead, defaultCategoryId?: string | null, defaultOwner?: Handler | null): FormState => ({
   company_name: l?.company_name ?? "",
@@ -33,7 +32,6 @@ const toForm = (l?: Lead, defaultCategoryId?: string | null, defaultOwner?: Hand
   notes: l?.notes ?? "",
   category_id: (l ? l.category_id : defaultCategoryId) ?? "",
   owner: (l ? l.owner : defaultOwner) ?? "",
-  priority: l?.priority ?? "",
 })
 
 function validate(f: FormState): Partial<Record<keyof FormState, string>> {
@@ -113,7 +111,6 @@ function LeadForm({ lead, categories, defaultCategoryId, defaultOwner, onSaved }
       notes: blankToNull(form.notes),
       category_id: form.category_id || null,
       owner: (form.owner || null) as Handler | null,
-      priority: (form.priority || null) as LeadPriority | null,
     }
     setSaving(true)
     try {
@@ -158,20 +155,6 @@ function LeadForm({ lead, categories, defaultCategoryId, defaultOwner, onSaved }
             <SelectContent>
               <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
               {HANDLERS.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        ))}
-        {field("priority", "Priority", (
-          <Select value={form.priority || NO_PRIORITY} onValueChange={(v) => set("priority", v === NO_PRIORITY ? "" : v)}>
-            <SelectTrigger id="priority" className="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NO_PRIORITY}>No priority</SelectItem>
-              {LEAD_PRIORITIES.map((p) => (
-                <SelectItem key={p} value={p}>
-                  <span className={`size-2 rounded-full ${PRIORITY_DOT[p]}`} aria-hidden />
-                  {PRIORITY_LABELS[p]}
-                </SelectItem>
-              ))}
             </SelectContent>
           </Select>
         ))}
