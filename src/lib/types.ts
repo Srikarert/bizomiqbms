@@ -22,6 +22,9 @@ export type Priority = (typeof PRIORITIES)[number]
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 export type FollowUpStatus = (typeof FOLLOW_UP_STATUSES)[number]
 export type Handler = (typeof HANDLERS)[number]
+// Lead priority marker (20261010140000_lead_priority.sql). NULL = none.
+export const LEAD_PRIORITIES = ["High", "Maybe"] as const
+export type LeadPriority = (typeof LEAD_PRIORITIES)[number]
 
 interface Timestamps {
   created_at: string
@@ -45,6 +48,7 @@ export interface Lead extends Timestamps {
   deal_value: number
   follow_up_date: string | null
   owner: Handler | null // "Handled by"
+  priority: LeadPriority | null
   notes: string | null
   // Generated columns (read-only), used for duplicate detection.
   email_normalized: string | null

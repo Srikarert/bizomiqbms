@@ -1,4 +1,19 @@
-import { LEAD_STATUSES, type LeadStatus } from "@/lib/types"
+import { LEAD_STATUSES, type LeadPriority, type LeadStatus } from "@/lib/types"
+
+export const PRIORITY_LABELS: Record<LeadPriority, string> = { High: "High priority", Maybe: "Maybe" }
+export const PRIORITY_STYLES: Record<LeadPriority, string> = {
+  High: "bg-info/15 text-info",
+  Maybe: "bg-warning/15 text-warning",
+}
+export const PRIORITY_DOT: Record<LeadPriority, string> = { High: "bg-info", Maybe: "bg-warning" }
+
+// "high", "hot", "maybe", "mid"... from a spreadsheet; undefined if unrecognized.
+export function parsePriority(raw: string): LeadPriority | undefined {
+  const t = raw.trim().toLowerCase()
+  if (/^(high|hot|h|urgent|top)\b/.test(t)) return "High"
+  if (/^(maybe|mid|medium|m|warm)\b/.test(t)) return "Maybe"
+  return undefined
+}
 
 // Green leads are the ones showing interest. Everything else is a normal lead.
 export const GREEN_STATUSES: readonly LeadStatus[] = ["Interested", "Qualified", "Proposal Sent", "Negotiation", "Won"]
