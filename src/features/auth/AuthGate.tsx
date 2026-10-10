@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label"
 
 type Membership = "unknown" | "member" | "not-member"
 
+const USERNAME_DOMAIN = "bizomiq.local"
+
 // Renders children only for signed-in users listed in public.team_members.
 // This is a UX gate; the real enforcement is RLS in the database.
 export function AuthGate({ children }: { children: (session: Session) => ReactNode }) {
@@ -83,7 +85,13 @@ function SignIn() {
     e.preventDefault()
     setBusy(true)
     setError(null)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    // Supabase logins are emails; a plain username ("bizomiq7448") maps to
+    // the shared account's placeholder address.
+    const login = email.trim().toLowerCase()
+    const { error } = await supabase.auth.signInWithPassword({
+      email: login.includes("@") ? login : `${login}@${USERNAME_DOMAIN}`,
+      password,
+    })
     if (error) setError(error.message)
     setBusy(false)
   }
@@ -96,8 +104,8 @@ function SignIn() {
           <p className="text-xs text-muted-foreground">Sign in to continue</p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Label htmlFor="email">Email or username</Label>
+          <Input id="email" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} required value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="password">Password</Label>

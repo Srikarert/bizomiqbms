@@ -16,7 +16,7 @@ export function SettingsPage({ session }: { session: Session }) {
           <dt className="text-muted-foreground">Email</dt>
           <dd className="truncate">{session.user.email}</dd>
           <dt className="text-muted-foreground">Handled by</dt>
-          <dd>{myName ?? <span className="text-muted-foreground">Not linked — ask an admin to set your name</span>}</dd>
+          <dd>{myName ?? <span className="text-muted-foreground">Not linked to a team member</span>}</dd>
           <dt className="text-muted-foreground">Last sign-in</dt>
           <dd>{session.user.last_sign_in_at ? new Date(session.user.last_sign_in_at).toLocaleString() : "—"}</dd>
         </dl>

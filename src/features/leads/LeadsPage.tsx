@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { ArrowLeft, FolderOpen, Loader2, MoreHorizontal, Pencil, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
+import { ArrowLeft, Download, FolderOpen, Loader2, MoreHorizontal, Pencil, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMyName } from "@/lib/team"
 import { HANDLERS, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
@@ -22,6 +22,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { deleteLeads, fetchAllLeads, fetchCategories, updateLead, updateLeads } from "./api"
 import { CallStatusCell } from "./CallStatusCell"
 import { CategoriesDialog } from "./CategoriesDialog"
+import { exportLeadsToExcel } from "./export"
 import { ImportDialog } from "./import/ImportDialog"
 import { LeadFormDialog } from "./LeadFormDialog"
 import {
@@ -39,8 +40,6 @@ const UNASSIGNED = "__none__"
 // to normal means it was contacted but isn't interested (yet).
 const GREEN_STAGE: LeadStatus = "Interested"
 const NORMAL_STAGE: LeadStatus = "Contacted"
-// Stages set deliberately later in the deal; a new call remark never overrides them.
-const ADVANCED_STAGES: readonly LeadStatus[] = ["Qualified", "Proposal Sent", "Negotiation", "Won"]
 
 export function LeadsPage() {
   const [leads, setLeads] = useState<Lead[] | null>(null)
@@ -175,6 +174,19 @@ export function LeadsPage() {
     }
   }
 
+  async function doExport(rows: Lead[]) {
+    if (!rows.length) return
+    setBusy(true)
+    try {
+      await exportLeadsToExcel(rows, categories)
+      toast.success(`Exported ${rows.length} lead${rows.length === 1 ? "" : "s"}`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not export")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   function replaceLeads(updated: Lead[]) {
     const byId = new Map(updated.map((l) => [l.id, l]))
     setLeads((ls) => ls?.map((l) => byId.get(l.id) ?? l) ?? ls)
@@ -194,10 +206,11 @@ export function LeadsPage() {
     }
   }
 
-  // Saving a remark also moves the stage, like import does ("visit" -> green).
+  // A remark can promote a normal lead ("visit" -> green), like import does, but
+  // never demotes a green one: "busy" or "call later" on an interested lead is
+  // just a note. Moving back to normal is explicit (Move to normal / Stage).
   async function saveCallStatus(lead: Lead, callStatus: string | null) {
-    const status =
-      !callStatus || ADVANCED_STAGES.includes(lead.status) ? lead.status : deriveLeadStatus(callStatus)
+    const status = !callStatus || isGreen(lead.status) ? lead.status : deriveLeadStatus(callStatus)
     try {
       replaceLeads([await updateLead(lead.id, { call_status: callStatus, status })])
       if (isGreen(status) !== isGreen(lead.status)) {
@@ -290,6 +303,14 @@ export function LeadsPage() {
           <>
             <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!leads}>
               <Upload /> Import Excel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => doExport(filtered)}
+              disabled={!leads || filtered.length === 0 || busy}
+              title="Exports the leads currently shown (all pages, with filters applied)"
+            >
+              <Download /> Export Excel
             </Button>
             <Button onClick={() => setEditing("new")}>
               <Plus /> Add lead
@@ -414,6 +435,9 @@ export function LeadsPage() {
               {ownerMenu(selectedIds)}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => doExport(filtered.filter((l) => selected.has(l.id)))}>
+            <Download /> Export
+          </Button>
           <Button size="sm" variant="destructive" disabled={busy} onClick={() => setConfirmDelete(selectedIds)}>
             <Trash2 /> Delete
           </Button>
@@ -459,6 +483,7 @@ export function LeadsPage() {
                       }
                     />
                   </TableHead>
+                  <TableHead className="w-12 text-right">S.No</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
                   {categoryFilter === ALL && <TableHead>Category</TableHead>}
@@ -471,11 +496,13 @@ export function LeadsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visible.map((l) => (
+                {visible.map((l, i) => (
                   <TableRow key={l.id} data-state={selected.has(l.id) ? "selected" : undefined}>
                     <TableCell>
                       <Checkbox aria-label={`Select ${l.company_name}`} checked={selected.has(l.id)} onCheckedChange={() => toggle(l.id)} />
                     </TableCell>
+                    {/* Position in the current filtered list, continuing across pages. */}
+                    <TableCell className="text-right text-muted-foreground tabular-nums">{currentPage * PAGE_SIZE + i + 1}</TableCell>
                     <TableCell className="max-w-64">
                       <button className="block max-w-full truncate text-left font-medium hover:underline" onClick={() => setEditing(l)}>
                         {l.company_name}
