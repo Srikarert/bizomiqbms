@@ -46,6 +46,8 @@ export interface Lead extends Timestamps {
   follow_up_date: string | null
   owner: Handler | null // "Handled by"
   notes: string | null
+  // When the lead became green (set by a DB trigger); null while not green.
+  green_since: string | null
   // Generated columns (read-only), used for duplicate detection.
   email_normalized: string | null
   phone_normalized: string | null

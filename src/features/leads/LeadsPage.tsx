@@ -117,7 +117,7 @@ export function LeadsPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     const qDigits = q.replace(/\D/g, "")
-    return (leads ?? []).filter((l) => {
+    const rows = (leads ?? []).filter((l) => {
       if (tab !== "all" && isGreen(l.status) !== (tab === "green")) return false
       if (tab === "green" && greenFilter !== ALL && greenGroup(l.status) !== greenFilter) return false
       if (!matchesCategory(l)) return false
@@ -132,6 +132,9 @@ export function LeadsPage() {
       if (hay.includes(q)) return true
       return qDigits.length >= 3 && [l.phone, l.alternate_phone].some((p) => p?.replace(/\D/g, "").includes(qDigits))
     })
+    // Green tab: most recently turned green first.
+    if (tab === "green") rows.sort((a, b) => (b.green_since ?? "").localeCompare(a.green_since ?? ""))
+    return rows
   }, [leads, tab, greenFilter, statusFilter, ownerFilter, myName, query, matchesCategory])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
@@ -534,6 +537,7 @@ export function LeadsPage() {
                   <TableHead>Location</TableHead>
                   <TableHead>Call status</TableHead>
                   <TableHead>Stage</TableHead>
+                  {tab === "green" && <TableHead>Green since</TableHead>}
                   <TableHead>Handled by</TableHead>
                   <TableHead>Follow-up</TableHead>
                   <TableHead className="w-10" />
@@ -591,6 +595,11 @@ export function LeadsPage() {
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    {tab === "green" && (
+                      <TableCell className="whitespace-nowrap text-muted-foreground" title={formatDateTime(l.green_since)}>
+                        {l.green_since ? formatDate(l.green_since.slice(0, 10)) : "—"}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <Select value={l.owner ?? UNASSIGNED} onValueChange={(v) => setOwner([l.id], v === UNASSIGNED ? null : (v as Handler))}>
                         <SelectTrigger
@@ -736,6 +745,11 @@ function moveMessage(status: LeadStatus) {
   if (!isGreen(status)) return "moved to normal leads"
   const group = GREEN_GROUPS.find((g) => g.key === greenGroup(status))
   return group && group.key !== "normal" ? `moved to green leads (${group.label})` : "moved to green leads"
+}
+
+function formatDateTime(ts: string | null) {
+  if (!ts) return ""
+  return `Green since ${new Date(ts).toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}`
 }
 
 function formatDate(d: string | null) {
