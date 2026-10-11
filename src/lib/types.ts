@@ -22,6 +22,9 @@ export type Priority = (typeof PRIORITIES)[number]
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 export type FollowUpStatus = (typeof FOLLOW_UP_STATUSES)[number]
 export type Handler = (typeof HANDLERS)[number]
+// How likely a lead's business is real and reachable (leads.genuineness).
+export const GENUINENESS_LEVELS = ["High", "Medium", "Low"] as const
+export type Genuineness = (typeof GENUINENESS_LEVELS)[number]
 
 interface Timestamps {
   created_at: string
@@ -45,6 +48,8 @@ export interface Lead extends Timestamps {
   deal_value: number
   follow_up_date: string | null
   owner: Handler | null // "Handled by"
+  lead_score: number | null // 0-100, higher is better
+  genuineness: Genuineness | null
   notes: string | null
   // When the lead became green (set by a DB trigger); null while not green.
   green_since: string | null

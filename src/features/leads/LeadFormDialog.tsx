@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactNode } from "react"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
-import { HANDLERS, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
+import { GENUINENESS_LEVELS, HANDLERS, LEAD_STATUSES, type Genuineness, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -15,6 +15,7 @@ type FormState = Record<Exclude<keyof LeadInput, "status">, string> & { status: 
 
 const NO_CATEGORY = "__none__"
 const UNASSIGNED = "__none__"
+const UNKNOWN = "__none__"
 
 const toForm = (l?: Lead, defaultCategoryId?: string | null, defaultOwner?: Handler | null): FormState => ({
   company_name: l?.company_name ?? "",
@@ -32,6 +33,8 @@ const toForm = (l?: Lead, defaultCategoryId?: string | null, defaultOwner?: Hand
   notes: l?.notes ?? "",
   category_id: (l ? l.category_id : defaultCategoryId) ?? "",
   owner: (l ? l.owner : defaultOwner) ?? "",
+  lead_score: l?.lead_score != null ? String(l.lead_score) : "",
+  genuineness: l?.genuineness ?? "",
 })
 
 function validate(f: FormState): Partial<Record<keyof FormState, string>> {
@@ -42,6 +45,9 @@ function validate(f: FormState): Partial<Record<keyof FormState, string>> {
   }
   if (f.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())) e.email = "Enter a valid email"
   if (f.deal_value.trim() && !(Number(f.deal_value) >= 0)) e.deal_value = "Must be a positive number"
+  if (f.lead_score.trim() && !(Number.isInteger(Number(f.lead_score)) && Number(f.lead_score) >= 0 && Number(f.lead_score) <= 100)) {
+    e.lead_score = "Enter a whole number from 0 to 100"
+  }
   return e
 }
 
@@ -111,6 +117,8 @@ function LeadForm({ lead, categories, defaultCategoryId, defaultOwner, onSaved }
       notes: blankToNull(form.notes),
       category_id: form.category_id || null,
       owner: (form.owner || null) as Handler | null,
+      lead_score: form.lead_score.trim() ? Number(form.lead_score) : null,
+      genuineness: (form.genuineness || null) as Genuineness | null,
     }
     setSaving(true)
     try {
@@ -190,6 +198,16 @@ function LeadForm({ lead, categories, defaultCategoryId, defaultOwner, onSaved }
         {text("email", "Email", "email")}
         {text("website", "Website")}
         {text("source", "Source")}
+        {text("lead_score", "Lead score (0-100)", "number")}
+        {field("genuineness", "Genuineness", (
+          <Select value={form.genuineness || UNKNOWN} onValueChange={(v) => set("genuineness", v === UNKNOWN ? "" : v)}>
+            <SelectTrigger id="genuineness" className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNKNOWN}>Not rated</SelectItem>
+              {GENUINENESS_LEVELS.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        ))}
         {text("deal_value", "Deal value (₹)", "number")}
         {text("follow_up_date", "Follow-up date", "date")}
         {field("notes", "Notes", (

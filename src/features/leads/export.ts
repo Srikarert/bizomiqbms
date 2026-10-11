@@ -18,6 +18,8 @@ export async function exportLeadsToExcel(leads: Lead[], categories: LeadCategory
     Location: l.location ?? "",
     "Call status": l.call_status ?? "",
     Stage: l.status,
+    "Lead score": l.lead_score ?? "",
+    Genuineness: l.genuineness ?? "",
     "Green since": l.green_since ? new Date(l.green_since) : "",
     "Handled by": l.owner ?? "",
     "Follow-up date": dateCell(l.follow_up_date),

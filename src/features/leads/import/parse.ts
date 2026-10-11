@@ -1,4 +1,4 @@
-import { HANDLERS, type Handler, type Lead } from "@/lib/types"
+import { HANDLERS, type Genuineness, type Handler, type Lead } from "@/lib/types"
 import type { LeadInput } from "../api"
 import { deriveLeadStatus } from "../status"
 
@@ -9,8 +9,10 @@ export const IMPORT_FIELDS = [
   { key: "alternate_phone", label: "Alternate phone", synonyms: ["alternate phone", "alt phone", "alternate number", "alternate mobile", "alternate", "alt number", "phone 2", "mobile 2", "secondary phone", "other number", "landline", "whatsapp"] },
   { key: "contact_name", label: "Contact person", synonyms: ["contact name", "contact person", "person", "owner name", "contact", "proprietor"] },
   { key: "owner", label: "Handled by", synonyms: ["handled by", "assigned to", "assigned", "owner", "sales person", "salesperson", "executive", "caller", "called by"] },
+  { key: "lead_score", label: "Lead score", synonyms: ["lead score", "score", "lead quality score", "quality score"] },
+  { key: "genuineness", label: "Genuineness", synonyms: ["genuineness", "genuine", "genuineness level", "authenticity", "legitimacy"] },
   { key: "company_name", label: "Name", synonyms: ["name", "company", "company name", "business", "business name", "lead name", "firm", "shop", "organisation", "organization", "store"] },
-  { key: "phone", label: "Phone number", synonyms: ["phone", "phone number", "mobile", "mobile number", "contact number", "number", "ph", "cell", "phone no", "mobile no"] },
+  { key: "phone", label: "Phone number", synonyms: ["mobile whatsapp", "phone whatsapp", "phone", "phone number", "mobile", "mobile number", "contact number", "number", "ph", "cell", "phone no", "mobile no"] },
   { key: "location", label: "Location", synonyms: ["location", "area", "address", "city", "place", "locality"] },
   { key: "call_status", label: "Status / remarks", synonyms: ["status", "call status", "remarks", "remark", "response", "outcome", "feedback", "result"] },
   { key: "email", label: "Email", synonyms: ["email", "email id", "mail", "e mail"] },
@@ -94,11 +96,15 @@ export interface PreparedRow {
   duplicateOf?: string // Why it is a duplicate.
 }
 
+// Research sheets fill empty cells with text like "None found"; treat as blank.
+const PLACEHOLDER_RE = /^(none( found)?|not (found|available|applicable)|n\/?a|na|nil|null|unknown|-+|\u2014|\u2013)$/i
+
 const cellText = (v: unknown): string => {
   if (v instanceof Date) return v.toISOString().slice(0, 10)
   // Integers: avoid "9.87654321E+9" for phone numbers stored as numbers.
   if (typeof v === "number") return Number.isInteger(v) ? v.toFixed(0) : String(v)
-  return String(v ?? "").trim()
+  const s = String(v ?? "").trim()
+  return PLACEHOLDER_RE.test(s) ? "" : s
 }
 
 // Last 10 digits so "+91 98765 43210" and "9876543210" match.
@@ -128,6 +134,15 @@ export interface PrepareOptions {
   source: string
   categoryId: string | null // Every imported row goes into this category (null = uncategorized).
   owner: Handler | null // Applied to every row without its own "Handled by" value.
+}
+
+// "high", "Medium", "low", "med" -> Genuineness; anything else is unknown.
+export function matchGenuineness(raw: string): Genuineness | undefined {
+  const t = raw.trim().toLowerCase()
+  if (/^(high|h)\b/.test(t)) return "High"
+  if (/^(medium|med|moderate|average|m)\b/.test(t)) return "Medium"
+  if (/^(low|l)\b/.test(t)) return "Low"
+  return undefined
 }
 
 // "srikar", "Srikar Akula" -> "Srikar"; anything else is unknown.
@@ -175,6 +190,8 @@ export function prepareRows(sheet: Sheet, mapping: Mapping, existing: Lead[], op
       notes: text("notes"),
       category_id: opts.categoryId,
       owner: opts.owner,
+      lead_score: null,
+      genuineness: null,
     }
 
     // Bad optional values don't cost the lead: blank the field, keep the text in notes.
@@ -192,6 +209,18 @@ export function prepareRows(sheet: Sheet, mapping: Mapping, existing: Lead[], op
       const h = matchHandler(rawOwner)
       if (h) lead.owner = h
       else warnings.push(`unknown "Handled by" "${rawOwner}"`)
+    }
+    const rawScore = text("lead_score")
+    if (rawScore) {
+      const n = Number(rawScore.replace(/%/g, ""))
+      if (Number.isFinite(n) && n >= 0 && n <= 100) lead.lead_score = Math.round(n)
+      else keep("lead score", rawScore)
+    }
+    const rawGenuine = text("genuineness")
+    if (rawGenuine) {
+      const g = matchGenuineness(rawGenuine)
+      if (g) lead.genuineness = g
+      else keep("genuineness", rawGenuine)
     }
     const rawValue = text("deal_value")
     if (rawValue) {

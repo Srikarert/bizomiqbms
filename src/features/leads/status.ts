@@ -1,4 +1,11 @@
-import { LEAD_STATUSES, type LeadStatus } from "@/lib/types"
+import { LEAD_STATUSES, type Genuineness, type LeadStatus } from "@/lib/types"
+
+// Genuineness text colours: High is good, Low is a warning to double-check.
+export const GENUINENESS_STYLES: Record<Genuineness, string> = {
+  High: "text-success",
+  Medium: "text-warning",
+  Low: "text-muted-foreground",
+}
 
 // Green leads are the ones showing interest. Everything else is a normal lead.
 export const GREEN_STATUSES: readonly LeadStatus[] = [

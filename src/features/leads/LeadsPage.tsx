@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { ArrowLeft, Download, FolderOpen, Loader2, MoreHorizontal, Pencil, Phone, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
+import { ArrowDownWideNarrow, ArrowLeft, Download, FolderOpen, Loader2, MoreHorizontal, Pencil, Phone, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMyName } from "@/lib/team"
-import { HANDLERS, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
+import { GENUINENESS_LEVELS, HANDLERS, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
 import { PageHeader } from "@/components/layout/PageHeader"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -26,7 +26,7 @@ import { exportLeadsToExcel } from "./export"
 import { ImportDialog } from "./import/ImportDialog"
 import { LeadFormDialog } from "./LeadFormDialog"
 import {
-  COMMON_REMARKS, GREEN_GROUPS, GREEN_STATUSES, NORMAL_STATUSES, REMARKS_LIST_ID, STATUS_STYLES, deriveLeadStatus,
+  COMMON_REMARKS, GENUINENESS_STYLES, GREEN_GROUPS, GREEN_STATUSES, NORMAL_STATUSES, REMARKS_LIST_ID, STATUS_STYLES, deriveLeadStatus,
   greenGroup, isGreen, type GreenGroup,
 } from "./status"
 
@@ -56,6 +56,9 @@ export function LeadsPage() {
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>(ALL)
   const [ownerFilter, setOwnerFilter] = useState<string>(ALL)
+  const [genuineFilter, setGenuineFilter] = useState<string>(ALL)
+  // Highest lead score first (leads without a score last).
+  const [bestFirst, setBestFirst] = useState(false)
   const myName = useMyName()
   const [page, setPage] = useState(0)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -128,16 +131,18 @@ export function LeadsPage() {
         const want = ownerFilter === MINE ? myName : ownerFilter === UNASSIGNED ? null : ownerFilter
         if (l.owner !== want) return false
       }
+      if (genuineFilter !== ALL && (l.genuineness ?? UNASSIGNED) !== genuineFilter) return false
       if (!q) return true
       const hay = [l.company_name, l.contact_name, l.location, l.call_status, l.email, l.notes, l.owner]
         .filter(Boolean).join(" ").toLowerCase()
       if (hay.includes(q)) return true
       return qDigits.length >= 3 && [l.phone, l.alternate_phone].some((p) => p?.replace(/\D/g, "").includes(qDigits))
     })
+    if (bestFirst) rows.sort((a, b) => (b.lead_score ?? -1) - (a.lead_score ?? -1))
     // Green tab: most recently turned green first.
-    if (tab === "green") rows.sort((a, b) => (b.green_since ?? "").localeCompare(a.green_since ?? ""))
+    else if (tab === "green") rows.sort((a, b) => (b.green_since ?? "").localeCompare(a.green_since ?? ""))
     return rows
-  }, [leads, tab, greenFilter, statusFilter, ownerFilter, myName, query, matchesCategory])
+  }, [leads, tab, greenFilter, statusFilter, ownerFilter, genuineFilter, bestFirst, myName, query, matchesCategory])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const currentPage = Math.min(page, pageCount - 1)
@@ -445,6 +450,31 @@ export function LeadsPage() {
             <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
           </SelectContent>
         </Select>
+        <Select
+          value={genuineFilter}
+          onValueChange={(v) => {
+            setGenuineFilter(v)
+            setSelected(new Set())
+            setPage(0)
+          }}
+        >
+          <SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-40" aria-label="Genuineness"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Any genuineness</SelectItem>
+            {GENUINENESS_LEVELS.map((g) => <SelectItem key={g} value={g}>{g} genuineness</SelectItem>)}
+            <SelectItem value={UNASSIGNED}>Not rated</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          variant={bestFirst ? "secondary" : "outline"}
+          aria-pressed={bestFirst}
+          onClick={() => {
+            setBestFirst((b) => !b)
+            setPage(0)
+          }}
+        >
+          <ArrowDownWideNarrow /> Best score first
+        </Button>
       </div>
 
       {tab === "green" && (
@@ -579,7 +609,7 @@ export function LeadsPage() {
         <div className="flex justify-center p-12"><Loader2 className="size-5 animate-spin text-muted-foreground" /></div>
       ) : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-          {query || statusFilter !== ALL || ownerFilter !== ALL
+          {query || statusFilter !== ALL || ownerFilter !== ALL || genuineFilter !== ALL
             ? "No leads match your filters."
             : categoryFilter !== ALL
               ? "No leads in this category yet. Add one, import a sheet, or move leads here with Set category."
@@ -619,6 +649,13 @@ export function LeadsPage() {
                         {l.company_name}
                       </button>
                       {l.contact_name && <div className="truncate text-xs text-muted-foreground">{l.contact_name}</div>}
+                      {(l.lead_score != null || l.genuineness) && (
+                        <div className="text-xs text-muted-foreground">
+                          {l.lead_score != null && <>Score <span className="tabular-nums text-foreground">{l.lead_score}</span></>}
+                          {l.lead_score != null && l.genuineness && " · "}
+                          {l.genuineness && <span className={GENUINENESS_STYLES[l.genuineness]}>{l.genuineness} genuineness</span>}
+                        </div>
+                      )}
                       {tab === "green" && l.green_since && (
                         <div className="text-xs text-muted-foreground" title={formatDateTime(l.green_since)}>
                           Green since {formatDate(l.green_since.slice(0, 10))}
@@ -666,6 +703,8 @@ export function LeadsPage() {
                   <TableHead>Location</TableHead>
                   <TableHead>Call status</TableHead>
                   <TableHead>Stage</TableHead>
+                  <TableHead className="text-right">Score</TableHead>
+                  <TableHead>Genuine</TableHead>
                   {tab === "green" && <TableHead>Green since</TableHead>}
                   <TableHead>Handled by</TableHead>
                   <TableHead>Follow-up</TableHead>
@@ -706,6 +745,12 @@ export function LeadsPage() {
                       <CallStatusCell value={l.call_status} onSave={(v) => saveCallStatus(l, v)} />
                     </TableCell>
                     <TableCell>{stageSelect(l)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {l.lead_score ?? <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className={l.genuineness ? GENUINENESS_STYLES[l.genuineness] : "text-muted-foreground"}>
+                      {l.genuineness ?? "—"}
+                    </TableCell>
                     {tab === "green" && (
                       <TableCell className="whitespace-nowrap text-muted-foreground" title={formatDateTime(l.green_since)}>
                         {l.green_since ? formatDate(l.green_since.slice(0, 10)) : "—"}
