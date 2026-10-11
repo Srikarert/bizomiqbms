@@ -6,10 +6,11 @@ import { REMARKS_LIST_ID } from "./status"
 interface Props {
   value: string | null
   onSave: (value: string | null) => Promise<void>
+  className?: string // Overrides the default fixed width.
 }
 
 // Click to edit in place. Enter or clicking away saves; Escape cancels.
-export function CallStatusCell({ value, onSave }: Props) {
+export function CallStatusCell({ value, onSave, className }: Props) {
   const [draft, setDraft] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -33,7 +34,7 @@ export function CallStatusCell({ value, onSave }: Props) {
 
   if (draft !== null) {
     return (
-      <div className="relative">
+      <div className={cn("relative", className)}>
         <input
           autoFocus
           list={REMARKS_LIST_ID}
@@ -49,7 +50,7 @@ export function CallStatusCell({ value, onSave }: Props) {
             if (e.key === "Enter") e.currentTarget.blur()
             if (e.key === "Escape") setDraft(null)
           }}
-          className="h-7 w-44 rounded-md border border-input bg-background px-2 text-sm outline-none focus:border-ring"
+          className="h-7 w-full min-w-0 rounded-md border border-input bg-background px-2 text-base outline-none focus:border-ring sm:text-sm"
         />
         {saving && <Loader2 className="absolute top-1.5 right-2 size-4 animate-spin text-muted-foreground" />}
       </div>
@@ -64,6 +65,7 @@ export function CallStatusCell({ value, onSave }: Props) {
       className={cn(
         "group/cs flex h-7 w-44 items-center gap-1.5 rounded-md px-2 text-left text-sm hover:bg-muted",
         !value && "text-muted-foreground",
+        className,
       )}
     >
       <span className="truncate">{value ?? "Add status"}</span>

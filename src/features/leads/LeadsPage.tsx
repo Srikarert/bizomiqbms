@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { ArrowLeft, Download, FolderOpen, Loader2, MoreHorizontal, Pencil, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
+import { ArrowLeft, Download, FolderOpen, Loader2, MoreHorizontal, Pencil, Phone, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMyName } from "@/lib/team"
 import { HANDLERS, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
@@ -301,6 +301,67 @@ export function LeadsPage() {
   )
   const selectedIds = [...selected]
 
+  const stageSelect = (l: Lead) => (
+    <Select value={l.status} onValueChange={(v) => changeStage(l, v as LeadStatus)}>
+      <SelectTrigger
+        size="sm"
+        aria-label="Stage"
+        className={cn("h-6 w-auto gap-1 rounded-full border-transparent px-2 text-xs", STATUS_STYLES[l.status])}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {LEAD_STATUSES.map((s) => (
+          <SelectItem key={s} value={s}>
+            {isGreen(s) && <span className="size-1.5 rounded-full bg-success" aria-hidden />}
+            {s}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+
+  const rowMenu = (l: Lead) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label="Lead actions"><MoreHorizontal /></Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => setEditing(l)}><Pencil /> Edit</DropdownMenuItem>
+        {isGreen(l.status) ? (
+          <DropdownMenuItem onSelect={() => setStatus([l.id], NORMAL_STAGE)}><ArrowLeft /> Move to normal</DropdownMenuItem>
+        ) : (
+          <DropdownMenuItem onSelect={() => setStatus([l.id], GREEN_STAGE)}><Sprout className="text-success" /> Mark green</DropdownMenuItem>
+        )}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger><Sprout className="text-success" /> Stage</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            {GREEN_STATUSES.map((s) => (
+              <DropdownMenuItem key={s} disabled={l.status === s} onSelect={() => setStatus([l.id], s)}>{s}</DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger><FolderOpen /> Category</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>{categoryMenu([l.id], l.category_id)}</DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger><UserRound /> Handled by</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>{ownerMenu([l.id], l.owner)}</DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete([l.id])}><Trash2 /> Delete</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  const selectAllVisible = (checked: boolean) =>
+    setSelected((s) => {
+      const n = new Set(s)
+      visible.forEach((l) => (checked ? n.add(l.id) : n.delete(l.id)))
+      return n
+    })
+
   return (
     <>
       <PageHeader
@@ -309,7 +370,7 @@ export function LeadsPage() {
         actions={
           <>
             <Button variant="outline" onClick={() => setImportOpen(true)} disabled={!leads}>
-              <Upload /> Import Excel
+              <Upload /> Import<span className="hidden sm:inline"> Excel</span>
             </Button>
             <Button
               variant="outline"
@@ -317,7 +378,7 @@ export function LeadsPage() {
               disabled={!leads || filtered.length === 0 || busy}
               title="Exports the leads currently shown (all pages, with filters applied)"
             >
-              <Download /> Export Excel
+              <Download /> Export<span className="hidden sm:inline"> Excel</span>
             </Button>
             <Button onClick={() => setEditing("new")}>
               <Plus /> Add lead
@@ -328,16 +389,16 @@ export function LeadsPage() {
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Tabs value={tab} onValueChange={(v) => switchTab(v as Tab)}>
-          <TabsList>
+          <TabsList className="w-full sm:w-auto">
             <TabsTrigger value="all">
-              All leads <span className="text-muted-foreground tabular-nums">{counts.all}</span>
+              All<span className="hidden sm:inline"> leads</span> <span className="text-muted-foreground tabular-nums">{counts.all}</span>
             </TabsTrigger>
             <TabsTrigger value="normal">
-              Normal leads <span className="text-muted-foreground tabular-nums">{counts.normal}</span>
+              Normal<span className="hidden sm:inline"> leads</span> <span className="text-muted-foreground tabular-nums">{counts.normal}</span>
             </TabsTrigger>
             <TabsTrigger value="green">
               <span className="size-2 rounded-full bg-success" aria-hidden />
-              Green leads <span className="text-muted-foreground tabular-nums">{counts.green}</span>
+              Green<span className="hidden sm:inline"> leads</span> <span className="text-muted-foreground tabular-nums">{counts.green}</span>
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -360,7 +421,7 @@ export function LeadsPage() {
             setPage(0)
           }}
         >
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-40"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>All stages</SelectItem>
             {stageOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -374,7 +435,7 @@ export function LeadsPage() {
             setPage(0)
           }}
         >
-          <SelectTrigger className="w-40" aria-label="Handled by"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[calc(50%-0.25rem)] sm:w-40" aria-label="Handled by"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value={ALL}>Anyone</SelectItem>
             {myName && <SelectItem value={MINE}>Handled by me</SelectItem>}
@@ -385,7 +446,7 @@ export function LeadsPage() {
       </div>
 
       {tab === "green" && (
-        <div className="mb-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter green leads">
+        <div className="-mx-4 mb-3 flex items-center gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0" role="group" aria-label="Filter green leads">
           {[{ key: ALL, label: "All green", dot: "bg-success" }, ...GREEN_GROUPS].map((g) => {
             const count = g.key === ALL ? counts.green : (counts.groups.get(g.key as GreenGroup) ?? 0)
             return (
@@ -400,7 +461,7 @@ export function LeadsPage() {
                   setPage(0)
                 }}
                 className={cn(
-                  "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-xs text-muted-foreground transition-colors hover:text-foreground",
+                  "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs text-muted-foreground transition-colors hover:text-foreground",
                   greenFilter === g.key && "border-foreground text-foreground",
                 )}
               >
@@ -413,7 +474,7 @@ export function LeadsPage() {
         </div>
       )}
 
-      <div className="mb-3 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter by category">
+      <div className="-mx-4 mb-3 flex items-center gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0" role="group" aria-label="Filter by category">
         {[
           { id: ALL, name: "All categories" },
           ...categories,
@@ -427,7 +488,7 @@ export function LeadsPage() {
             aria-pressed={categoryFilter === c.id}
             onClick={() => switchCategory(c.id)}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-xs text-muted-foreground transition-colors hover:text-foreground",
+              "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs text-muted-foreground transition-colors hover:text-foreground",
               categoryFilter === c.id && "border-foreground bg-foreground text-background hover:text-background",
             )}
           >
@@ -435,13 +496,13 @@ export function LeadsPage() {
             <span className="tabular-nums opacity-70">{categoryCounts.get(c.id) ?? 0}</span>
           </button>
         ))}
-        <Button variant="ghost" size="xs" onClick={() => setCategoriesOpen(true)}>
+        <Button variant="ghost" size="xs" className="shrink-0" onClick={() => setCategoriesOpen(true)}>
           <Plus /> New category
         </Button>
       </div>
 
       {selected.size > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm">
+        <div className="sticky top-2 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm">
           <span>{selected.size} selected</span>
           {selectedLeads.some((l) => !isGreen(l.status)) && (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => setStatus(selectedLeads.filter((l) => !isGreen(l.status)).map((l) => l.id), GREEN_STAGE)}>
@@ -513,7 +574,66 @@ export function LeadsPage() {
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border">
+          {/* Phones: compact cards with name, number, stage and status. */}
+          <div className="md:hidden">
+            <label className="mb-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
+              <Checkbox
+                aria-label="Select all on this page"
+                checked={allVisibleSelected}
+                onCheckedChange={(c) => selectAllVisible(Boolean(c))}
+              />
+              Select all on this page
+            </label>
+            <ul className="space-y-2">
+              {visible.map((l, i) => (
+                <li
+                  key={l.id}
+                  data-state={selected.has(l.id) ? "selected" : undefined}
+                  className="rounded-lg border bg-card p-3 data-[state=selected]:border-foreground/40"
+                >
+                  <div className="flex items-start gap-2.5">
+                    <Checkbox
+                      className="mt-1"
+                      aria-label={`Select ${l.company_name}`}
+                      checked={selected.has(l.id)}
+                      onCheckedChange={() => toggle(l.id)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <button className="block max-w-full truncate text-left font-medium" onClick={() => setEditing(l)}>
+                        <span className="mr-1.5 text-xs text-muted-foreground tabular-nums">{currentPage * PAGE_SIZE + i + 1}.</span>
+                        {l.company_name}
+                      </button>
+                      {l.contact_name && <div className="truncate text-xs text-muted-foreground">{l.contact_name}</div>}
+                      {tab === "green" && l.green_since && (
+                        <div className="text-xs text-muted-foreground" title={formatDateTime(l.green_since)}>
+                          Green since {formatDate(l.green_since.slice(0, 10))}
+                        </div>
+                      )}
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm tabular-nums">
+                        {l.phone ? (
+                          <a href={`tel:${l.phone}`} className="inline-flex items-center gap-1.5">
+                            <Phone className="size-3.5 text-muted-foreground" /> {l.phone}
+                          </a>
+                        ) : (
+                          <span className="text-muted-foreground">No number</span>
+                        )}
+                        {l.alternate_phone && (
+                          <a href={`tel:${l.alternate_phone}`} className="text-muted-foreground">{l.alternate_phone}</a>
+                        )}
+                      </div>
+                    </div>
+                    {rowMenu(l)}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2 pl-[1.625rem]">
+                    {stageSelect(l)}
+                    <CallStatusCell className="min-w-0 flex-1" value={l.call_status} onSave={(v) => saveCallStatus(l, v)} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -521,13 +641,7 @@ export function LeadsPage() {
                     <Checkbox
                       aria-label="Select all on this page"
                       checked={allVisibleSelected}
-                      onCheckedChange={(c) =>
-                        setSelected((s) => {
-                          const n = new Set(s)
-                          visible.forEach((l) => (c ? n.add(l.id) : n.delete(l.id)))
-                          return n
-                        })
-                      }
+                      onCheckedChange={(c) => selectAllVisible(Boolean(c))}
                     />
                   </TableHead>
                   <TableHead className="w-12 text-right">S.No</TableHead>
@@ -576,25 +690,7 @@ export function LeadsPage() {
                     <TableCell className="py-1">
                       <CallStatusCell value={l.call_status} onSave={(v) => saveCallStatus(l, v)} />
                     </TableCell>
-                    <TableCell>
-                      <Select value={l.status} onValueChange={(v) => changeStage(l, v as LeadStatus)}>
-                        <SelectTrigger
-                          size="sm"
-                          aria-label="Stage"
-                          className={cn("h-6 w-auto gap-1 rounded-full border-transparent px-2 text-xs", STATUS_STYLES[l.status])}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LEAD_STATUSES.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {isGreen(s) && <span className="size-1.5 rounded-full bg-success" aria-hidden />}
-                              {s}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
+                    <TableCell>{stageSelect(l)}</TableCell>
                     {tab === "green" && (
                       <TableCell className="whitespace-nowrap text-muted-foreground" title={formatDateTime(l.green_since)}>
                         {l.green_since ? formatDate(l.green_since.slice(0, 10)) : "—"}
@@ -616,39 +712,7 @@ export function LeadsPage() {
                       </Select>
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(l.follow_up_date)}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon-sm" aria-label="Lead actions"><MoreHorizontal /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => setEditing(l)}><Pencil /> Edit</DropdownMenuItem>
-                          {isGreen(l.status) ? (
-                            <DropdownMenuItem onSelect={() => setStatus([l.id], NORMAL_STAGE)}><ArrowLeft /> Move to normal</DropdownMenuItem>
-                          ) : (
-                            <DropdownMenuItem onSelect={() => setStatus([l.id], GREEN_STAGE)}><Sprout className="text-success" /> Mark green</DropdownMenuItem>
-                          )}
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger><Sprout className="text-success" /> Stage</DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent>
-                              {GREEN_STATUSES.map((s) => (
-                                <DropdownMenuItem key={s} disabled={l.status === s} onSelect={() => setStatus([l.id], s)}>{s}</DropdownMenuItem>
-                              ))}
-                            </DropdownMenuSubContent>
-                          </DropdownMenuSub>
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger><FolderOpen /> Category</DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent>{categoryMenu([l.id], l.category_id)}</DropdownMenuSubContent>
-                          </DropdownMenuSub>
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger><UserRound /> Handled by</DropdownMenuSubTrigger>
-                            <DropdownMenuSubContent>{ownerMenu([l.id], l.owner)}</DropdownMenuSubContent>
-                          </DropdownMenuSub>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete([l.id])}><Trash2 /> Delete</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    <TableCell>{rowMenu(l)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
