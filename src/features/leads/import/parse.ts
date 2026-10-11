@@ -1,4 +1,4 @@
-import { HANDLERS, type Handler, type Lead, type LeadCategory } from "@/lib/types"
+import { HANDLERS, type Handler, type Lead } from "@/lib/types"
 import type { LeadInput } from "../api"
 import { deriveLeadStatus } from "../status"
 
@@ -12,7 +12,6 @@ export const IMPORT_FIELDS = [
   { key: "company_name", label: "Name", synonyms: ["name", "company", "company name", "business", "business name", "lead name", "firm", "shop", "organisation", "organization", "store"] },
   { key: "phone", label: "Phone number", synonyms: ["phone", "phone number", "mobile", "mobile number", "contact number", "number", "ph", "cell", "phone no", "mobile no"] },
   { key: "location", label: "Location", synonyms: ["location", "area", "address", "city", "place", "locality"] },
-  { key: "category", label: "Category", synonyms: ["category", "categories", "type", "business type", "industry", "segment"] },
   { key: "call_status", label: "Status / remarks", synonyms: ["status", "call status", "remarks", "remark", "response", "outcome", "feedback", "result"] },
   { key: "email", label: "Email", synonyms: ["email", "email id", "mail", "e mail"] },
   { key: "website", label: "Website", synonyms: ["website", "web", "site", "url"] },
@@ -64,7 +63,8 @@ export function autoMap(headers: string[], saved?: Record<string, string | null>
 
   // 1. A previously saved mapping for the same header wins.
   norm.forEach((h, i) => {
-    if (saved && h in saved) mapping[i] = take(saved[h] as ImportField | null)
+    // Ignore saved fields that no longer exist (e.g. the old Category column).
+    if (saved && h in saved) mapping[i] = take(IMPORT_FIELDS.some((f) => f.key === saved[h]) ? (saved[h] as ImportField) : null)
   })
   // 2. Exact synonym match, then 3. header contains a synonym.
   for (const exact of [true, false]) {
@@ -126,8 +126,7 @@ function toIso(y: number, mo: number, d: number): string | "invalid" {
 
 export interface PrepareOptions {
   source: string
-  categoryId: string | null // Applied to every row without its own category.
-  categories: LeadCategory[]
+  categoryId: string | null // Every imported row goes into this category (null = uncategorized).
   owner: Handler | null // Applied to every row without its own "Handled by" value.
 }
 
@@ -138,7 +137,6 @@ export function matchHandler(raw: string): Handler | undefined {
 }
 
 export function prepareRows(sheet: Sheet, mapping: Mapping, existing: Lead[], opts: PrepareOptions): PreparedRow[] {
-  const categoryByName = new Map(opts.categories.map((c) => [c.name.trim().toLowerCase(), c.id]))
   const seenPhones = new Map<string, string>()
   const seenEmails = new Map<string, string>()
   for (const l of existing) {
@@ -188,12 +186,6 @@ export function prepareRows(sheet: Sheet, mapping: Mapping, existing: Lead[], op
     if (lead.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.email)) {
       keep("email", lead.email)
       lead.email = null
-    }
-    const rawCategory = text("category")
-    if (rawCategory) {
-      const id = categoryByName.get(rawCategory.toLowerCase())
-      if (id) lead.category_id = id
-      else warnings.push(`unknown category "${rawCategory}"`)
     }
     const rawOwner = text("owner")
     if (rawOwner) {

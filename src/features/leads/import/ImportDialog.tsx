@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createCategory, insertLeads, logActivity } from "../api"
+import { insertLeads, logActivity } from "../api"
 import { isGreen } from "../status"
 import {
   IMPORT_FIELDS, autoMap, mappingToTemplate, prepareRows, readWorkbook,
@@ -27,12 +27,11 @@ interface Props {
   existing: Lead[]
   categories: LeadCategory[]
   defaultCategoryId: string | null
-  onCategoriesCreated: (created: LeadCategory[]) => void
   onImported: () => void
 }
 
 export function ImportDialog({
-  open, onOpenChange, existing, categories, defaultCategoryId, onCategoriesCreated, onImported,
+  open, onOpenChange, existing, categories, defaultCategoryId, onImported,
 }: Props) {
   const [fileName, setFileName] = useState("")
   const [sheets, setSheets] = useState<Sheet[]>([])
@@ -47,39 +46,17 @@ export function ImportDialog({
   const myName = useMyName()
   const [chosenOwner, setChosenOwner] = useState<Handler | null>()
   const owner = chosenOwner === undefined ? myName : chosenOwner
-  const [createMissing, setCreateMissing] = useState(true)
   const [reading, setReading] = useState(false)
   const [importing, setImporting] = useState<{ done: number; total: number } | null>(null)
 
   const sheet = sheets[sheetIdx]
   const source = `Import: ${fileName}`
-  // Category names in the file that don't exist yet (case-insensitive).
-  const missingCategories = useMemo(() => {
-    const col = mapping.indexOf("category")
-    if (!sheet || col < 0) return []
-    const known = new Set(categories.map((c) => c.name.trim().toLowerCase()))
-    const found = new Map<string, string>()
-    for (const r of sheet.rows) {
-      const name = String(r[col] ?? "").trim()
-      if (name && !known.has(name.toLowerCase())) found.set(name.toLowerCase(), name)
-    }
-    return [...found.values()]
-  }, [sheet, mapping, categories])
-  // Preview treats to-be-created categories as existing (placeholder ids are
-  // never written: runImport re-prepares rows after creating them).
-  const previewCategories = useMemo(
-    () =>
-      createMissing
-        ? [...categories, ...missingCategories.map((name) => ({ id: `pending:${name}`, name, created_at: "" }))]
-        : categories,
-    [categories, missingCategories, createMissing],
-  )
   const prepared = useMemo(
     () =>
       sheet && mapping.includes("company_name")
-        ? prepareRows(sheet, mapping, existing, { source, categoryId, categories: previewCategories, owner })
+        ? prepareRows(sheet, mapping, existing, { source, categoryId, owner })
         : [],
-    [sheet, mapping, existing, source, categoryId, previewCategories, owner],
+    [sheet, mapping, existing, source, categoryId, owner],
   )
   const invalid = prepared.filter((r) => r.error)
   const duplicates = prepared.filter((r) => !r.error && r.duplicateOf)
@@ -130,17 +107,9 @@ export function ImportDialog({
   }
 
   async function runImport() {
-    let rows = toImport.map((r) => r.lead)
+    const rows = toImport.map((r) => r.lead)
     setImporting({ done: 0, total: rows.length })
     try {
-      if (createMissing && missingCategories.length) {
-        const created = await Promise.all(missingCategories.map((name) => createCategory(name)))
-        onCategoriesCreated(created)
-        // Re-run with the new categories so those rows pick them up.
-        const all = [...categories, ...created]
-        rows = toImportOf(prepareRows(sheet, mapping, existing, { source, categoryId, categories: all, owner }), skipDuplicates)
-          .map((r) => r.lead)
-      }
       const n = await insertLeads(rows, (done) => setImporting({ done, total: rows.length }))
       await Promise.all([
         logActivity("imported", `Imported ${n} leads from ${fileName}`),
@@ -215,7 +184,7 @@ export function ImportDialog({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <Label htmlFor="import-category">Category for these leads</Label>
+              <Label htmlFor="import-category">Put all these leads in</Label>
               <Select value={categoryId ?? NO_CATEGORY} onValueChange={(v) => setChosenCategory(v === NO_CATEGORY ? null : v)}>
                 <SelectTrigger id="import-category" size="sm" className="w-48"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -223,9 +192,7 @@ export function ImportDialog({
                   {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
-              {mapping.includes("category") && (
-                <span className="text-xs text-muted-foreground">Rows with their own Category column value use that instead.</span>
-              )}
+              <span className="text-xs text-muted-foreground">Every row goes into this one category.</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -289,13 +256,6 @@ export function ImportDialog({
                   {invalid.length > 0 && <span className="text-destructive"><b>{invalid.length}</b> with errors (skipped)</span>}
                   {warned.length > 0 && <span className="text-muted-foreground"><b>{warned.length}</b> with warnings (still imported)</span>}
                 </div>
-                {missingCategories.length > 0 && (
-                  <Label className="font-normal">
-                    <Checkbox checked={createMissing} onCheckedChange={(c) => setCreateMissing(c === true)} />
-                    Create {missingCategories.length} new categor{missingCategories.length === 1 ? "y" : "ies"}:{" "}
-                    {missingCategories.slice(0, 5).join(", ")}{missingCategories.length > 5 && "…"}
-                  </Label>
-                )}
                 {duplicates.length > 0 && (
                   <Label className="font-normal">
                     <Checkbox checked={skipDuplicates} onCheckedChange={(c) => setSkipDuplicates(c === true)} />

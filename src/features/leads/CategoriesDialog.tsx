@@ -12,13 +12,14 @@ interface Props {
   onOpenChange: (open: boolean) => void
   categories: LeadCategory[]
   counts: Map<string, number> // category id -> number of leads
+  initialConfirmDeleteId?: string | null // Opens with this category's delete confirmation showing.
   onChanged: (categories: LeadCategory[], deletedId?: string) => void
 }
 
-export function CategoriesDialog({ open, onOpenChange, categories, counts, onChanged }: Props) {
+export function CategoriesDialog({ open, onOpenChange, categories, counts, initialConfirmDeleteId, onChanged }: Props) {
   const [newName, setNewName] = useState("")
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null)
-  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(initialConfirmDeleteId ?? null)
   const [busy, setBusy] = useState(false)
 
   const sorted = (list: LeadCategory[]) => [...list].sort((a, b) => a.name.localeCompare(b.name))

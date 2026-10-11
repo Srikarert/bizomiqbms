@@ -51,6 +51,8 @@ export function LeadsPage() {
   const [greenFilter, setGreenFilter] = useState<GreenGroup | typeof ALL>(ALL)
   const [categoryFilter, setCategoryFilter] = useState<string>(ALL)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
+  // Category to ask "delete?" about as soon as the manager opens (from the filter row).
+  const [deleteCategoryId, setDeleteCategoryId] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>(ALL)
   const [ownerFilter, setOwnerFilter] = useState<string>(ALL)
@@ -499,6 +501,19 @@ export function LeadsPage() {
         <Button variant="ghost" size="xs" className="shrink-0" onClick={() => setCategoriesOpen(true)}>
           <Plus /> New category
         </Button>
+        {activeCategoryId && categoryName.has(activeCategoryId) && (
+          <Button
+            variant="ghost"
+            size="xs"
+            className="shrink-0 text-destructive hover:text-destructive"
+            onClick={() => {
+              setDeleteCategoryId(activeCategoryId)
+              setCategoriesOpen(true)
+            }}
+          >
+            <Trash2 /> Delete “{categoryName.get(activeCategoryId)}”
+          </Button>
+        )}
       </div>
 
       {selected.size > 0 && (
@@ -756,13 +771,17 @@ export function LeadsPage() {
         existing={leads ?? []}
         categories={categories}
         defaultCategoryId={activeCategoryId}
-        onCategoriesCreated={(created) => setCategories((cs) => [...cs, ...created].sort((a, b) => a.name.localeCompare(b.name)))}
         onImported={load}
       />
 
       <CategoriesDialog
+        key={categoriesOpen ? `open-${deleteCategoryId ?? ""}` : "closed"}
         open={categoriesOpen}
-        onOpenChange={setCategoriesOpen}
+        initialConfirmDeleteId={deleteCategoryId}
+        onOpenChange={(o) => {
+          setCategoriesOpen(o)
+          if (!o) setDeleteCategoryId(null)
+        }}
         categories={categories}
         counts={totalPerCategory}
         onChanged={(cats, deletedId) => {
