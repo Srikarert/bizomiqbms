@@ -35,3 +35,23 @@ export function dateTimeLabel(date: string, time?: string | null): string {
 
 // Same calendar day key, for grouping messages.
 export const dayKey = (iso: string) => localDate(new Date(iso))
+
+// --- Calendar-day arithmetic on YYYY-MM-DD strings (DST-safe) ----------------
+
+const DAY_MS = 86_400_000
+const utcDay = (s: string) => {
+  const [y, m, d] = s.split("-").map(Number)
+  return Date.UTC(y, m - 1, d)
+}
+
+// Whole days from `from` to `to` (negative when `to` is earlier).
+export const daysBetween = (from: string, to: string) => Math.round((utcDay(to) - utcDay(from)) / DAY_MS)
+
+export function addDays(date: string, n: number): string {
+  const d = new Date(utcDay(date) + n * DAY_MS)
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+}
+
+// YYYY-MM-DD -> "14 Oct".
+export const shortDate = (date: string) =>
+  new Date(`${date}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" })

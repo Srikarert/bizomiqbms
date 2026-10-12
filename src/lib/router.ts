@@ -2,7 +2,8 @@ import { useEffect, useState } from "react"
 
 // Minimal hash router: #/leads, #/chat, ... No router library needed.
 export const ROUTES = [
-  "dashboard", "leads", "clients", "projects", "tasks", "follow-ups", "visits", "chat", "meetings", "settings",
+  "dashboard", "leads", "clients", "projects", "calendar", "tasks", "follow-ups", "visits", "chat", "meetings",
+  "settings",
 ] as const
 export type Route = (typeof ROUTES)[number]
 

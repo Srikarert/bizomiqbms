@@ -2,8 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { localDate } from "@/lib/dates"
 import { Button } from "@/components/ui/button"
-
-export type Tone = "info" | "success" | "warning" | "danger" | "muted"
+import { CHIP, DOT, type Tone } from "./tones"
 
 export interface CalendarItem {
   id: string
@@ -11,20 +10,6 @@ export interface CalendarItem {
   tone: Tone
 }
 
-const DOT: Record<Tone, string> = {
-  info: "bg-info",
-  success: "bg-success",
-  warning: "bg-warning",
-  danger: "bg-destructive",
-  muted: "bg-muted-foreground/50",
-}
-const CHIP: Record<Tone, string> = {
-  info: "bg-info/15 text-info",
-  success: "bg-success/15 text-success",
-  warning: "bg-warning/15 text-warning",
-  danger: "bg-destructive/15 text-destructive",
-  muted: "bg-secondary text-muted-foreground",
-}
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 const MAX_CHIPS = 3
