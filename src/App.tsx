@@ -3,7 +3,9 @@ import { Toaster } from "@/components/ui/sonner"
 import { AppLayout } from "@/components/layout/AppLayout"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { AuthGate } from "@/features/auth/AuthGate"
+import { ChatPage } from "@/features/chat/ChatPage"
 import { LeadsPage } from "@/features/leads/LeadsPage"
+import { MeetingsPage } from "@/features/meetings/MeetingsPage"
 import { SettingsPage } from "@/features/settings/SettingsPage"
 import { useRoute, type Route } from "@/lib/router"
 
@@ -14,6 +16,8 @@ const TITLES: Record<Route, string> = {
   projects: "Projects",
   tasks: "Tasks",
   "follow-ups": "Follow-ups",
+  chat: "Team chat",
+  meetings: "Meetings",
   settings: "Settings",
 }
 
@@ -34,6 +38,10 @@ function Shell({ session }: { session: Session }) {
         <SettingsPage session={session} />
       ) : route === "leads" ? (
         <LeadsPage />
+      ) : route === "chat" ? (
+        <ChatPage session={session} />
+      ) : route === "meetings" ? (
+        <MeetingsPage />
       ) : (
         // Placeholder until the page is built in its phase.
         <>

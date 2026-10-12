@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react"
 
-// Minimal hash router: #/leads, #/clients, ... No router library needed.
-export const ROUTES = ["dashboard", "leads", "clients", "projects", "tasks", "follow-ups", "settings"] as const
+// Minimal hash router: #/leads, #/chat, ... No router library needed.
+export const ROUTES = [
+  "dashboard", "leads", "clients", "projects", "tasks", "follow-ups", "chat", "meetings", "settings",
+] as const
 export type Route = (typeof ROUTES)[number]
 
 function parseHash(): Route {
@@ -20,3 +22,6 @@ export function useRoute(): Route {
 }
 
 export const href = (route: Route) => `#/${route}`
+
+// Opens the Leads page with this lead's edit form showing.
+export const leadLink = (id: string) => `#/leads?lead=${id}`

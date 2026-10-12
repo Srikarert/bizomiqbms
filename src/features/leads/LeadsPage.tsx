@@ -84,6 +84,17 @@ export function LeadsPage() {
     void load()
   }, [load])
 
+  // Arriving from a chat card (#/leads?lead=<id>): open that lead once loaded.
+  useEffect(() => {
+    if (!leads) return
+    const id = window.location.hash.match(/[?&]lead=([0-9a-f-]{36})/i)?.[1]
+    if (!id) return
+    window.history.replaceState(null, "", "#/leads")
+    const lead = leads.find((l) => l.id === id)
+    if (lead) setEditing(lead)
+    else toast.error("That lead no longer exists")
+  }, [leads])
+
   const categoryName = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories])
   const matchesCategory = useCallback(
     (l: Lead) =>
