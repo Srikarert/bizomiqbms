@@ -1,6 +1,6 @@
 import { HANDLERS, type Genuineness, type Handler, type Lead } from "@/lib/types"
 import type { LeadInput } from "../api"
-import { deriveLeadStatus } from "../status"
+import { stageFromText } from "../status"
 
 // Lead fields a spreadsheet column can be mapped to, in auto-match priority
 // order: more specific fields first, so "Alternate phone" beats "phone" and
@@ -184,7 +184,7 @@ export function prepareRows(sheet: Sheet, mapping: Mapping, existing: Lead[], op
       location: text("location"),
       source: text("source") ?? opts.source,
       call_status: callStatus,
-      status: deriveLeadStatus(callStatus),
+      status: stageFromText(callStatus),
       deal_value: 0,
       follow_up_date: null,
       notes: text("notes"),

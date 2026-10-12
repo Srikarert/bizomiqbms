@@ -3,7 +3,7 @@
 // Status lists must stay in sync with the CHECK constraints there.
 
 export const LEAD_STATUSES = [
-  "New", "Contacted", "Interested", "Not Sure", "High Priority", "Qualified",
+  "New", "Not Answered", "Contacted", "Interested", "Not Sure", "High Priority", "Qualified",
   "Proposal Sent", "Negotiation", "Won", "Lost",
 ] as const
 export const CLIENT_STATUSES = ["Active", "Inactive", "Archived"] as const

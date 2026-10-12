@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { createLead, updateLead, type LeadInput } from "./api"
-import { deriveLeadStatus } from "./status"
 
 type FormState = Record<Exclude<keyof LeadInput, "status">, string> & { status: LeadStatus }
 
@@ -90,8 +89,6 @@ function LeadForm({ lead, categories, defaultCategoryId, defaultOwner, onSaved }
   const [form, setForm] = useState(() => toForm(lead, defaultCategoryId, defaultOwner))
   const [errors, setErrors] = useState<ReturnType<typeof validate>>({})
   const [saving, setSaving] = useState(false)
-  // Until the user picks a status by hand, follow the call remark.
-  const [statusTouched, setStatusTouched] = useState(Boolean(lead))
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => ({ ...f, [k]: v }))
 
@@ -175,20 +172,11 @@ function LeadForm({ lead, categories, defaultCategoryId, defaultOwner, onSaved }
             id="call_status"
             placeholder="e.g. busy, visit, call Monday"
             value={form.call_status}
-            onChange={(e) => {
-              set("call_status", e.target.value)
-              if (!statusTouched) set("status", deriveLeadStatus(e.target.value))
-            }}
+            onChange={(e) => set("call_status", e.target.value)}
           />
         ))}
         {field("status", "Stage", (
-          <Select
-            value={form.status}
-            onValueChange={(v) => {
-              setStatusTouched(true)
-              set("status", v as LeadStatus)
-            }}
-          >
+          <Select value={form.status} onValueChange={(v) => set("status", v as LeadStatus)}>
             <SelectTrigger id="status" className="w-full"><SelectValue /></SelectTrigger>
             <SelectContent>
               {LEAD_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}

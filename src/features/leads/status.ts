@@ -25,23 +25,13 @@ export type GreenGroup = (typeof GREEN_GROUPS)[number]["key"]
 export const greenGroup = (status: LeadStatus): GreenGroup =>
   status === "Not Sure" || status === "High Priority" ? status : "normal"
 
-// Mirrors the backfill in supabase/migrations/20261009140000_leads_call_status.sql
-// (the "Not Sure" rule was added later and only applies to new remarks).
-// Order matters: "not interested" must hit the lost rule before "interest".
-const LOST_RE = /(not\s*req|not\s*interest|no\s*need|wrong\s*(no|num)|not\s*required)/
-const NOT_SURE_RE = /(not\s*sure|maybe)/
-const GREEN_RE = /(visit|interest|meeting|demo|quot|proposal|deal|confirm)/
-
-// Maps a free-text call remark from a spreadsheet onto a pipeline stage.
-export function deriveLeadStatus(callStatus: string | null | undefined): LeadStatus {
-  const text = (callStatus ?? "").trim().toLowerCase()
-  if (!text) return "New"
-  const exact = LEAD_STATUSES.find((s) => s.toLowerCase() === text)
-  if (exact) return exact
-  if (LOST_RE.test(text)) return "Lost"
-  if (NOT_SURE_RE.test(text)) return "Not Sure"
-  if (GREEN_RE.test(text)) return "Interested"
-  return "Contacted"
+// The stage is only ever set by a person (Stage dropdown, bulk actions, the
+// lead form). Call-status text never changes it. The one exception is an
+// import: a cell whose text is exactly a stage name ("Interested", "Lost")
+// is taken as that stage; anything else starts as "New".
+export function stageFromText(text: string | null | undefined): LeadStatus {
+  const t = (text ?? "").trim().toLowerCase()
+  return LEAD_STATUSES.find((s) => s.toLowerCase() === t) ?? "New"
 }
 
 // Common call outcomes offered as suggestions when editing a remark; any text is allowed.
@@ -51,6 +41,7 @@ export const REMARKS_LIST_ID = "lead-remark-suggestions"
 
 export const STATUS_STYLES: Record<LeadStatus, string> = {
   New: "border-border text-foreground",
+  "Not Answered": "bg-secondary text-muted-foreground",
   Contacted: "bg-secondary text-muted-foreground",
   Interested: "bg-success/15 text-success",
   "Not Sure": "bg-warning/15 text-warning",

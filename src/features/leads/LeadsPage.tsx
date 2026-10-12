@@ -26,7 +26,7 @@ import { exportLeadsToExcel } from "./export"
 import { ImportDialog } from "./import/ImportDialog"
 import { LeadFormDialog } from "./LeadFormDialog"
 import {
-  COMMON_REMARKS, GENUINENESS_STYLES, GREEN_GROUPS, GREEN_STATUSES, NORMAL_STATUSES, REMARKS_LIST_ID, STATUS_STYLES, deriveLeadStatus,
+  COMMON_REMARKS, GENUINENESS_STYLES, GREEN_GROUPS, GREEN_STATUSES, NORMAL_STATUSES, REMARKS_LIST_ID, STATUS_STYLES,
   greenGroup, isGreen, type GreenGroup,
 } from "./status"
 
@@ -233,14 +233,10 @@ export function LeadsPage() {
     }
   }
 
-  // A remark can promote a normal lead ("visit" -> green), like import does, but
-  // never demotes a green one: "busy" or "call later" on an interested lead is
-  // just a note. Moving back to normal is explicit (Move to normal / Stage).
+  // Editing the call status only saves the text. The stage is changed by hand.
   async function saveCallStatus(lead: Lead, callStatus: string | null) {
-    const status = !callStatus || isGreen(lead.status) ? lead.status : deriveLeadStatus(callStatus)
     try {
-      replaceLeads([await updateLead(lead.id, { call_status: callStatus, status })])
-      if (isGreen(status) !== isGreen(lead.status)) toast.success(`${lead.company_name} ${moveMessage(status)}`)
+      replaceLeads([await updateLead(lead.id, { call_status: callStatus })])
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not update")
       throw e
