@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
-import { ArrowDownWideNarrow, ArrowLeft, Download, FolderOpen, Loader2, MoreHorizontal, Pencil, Phone, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
+import { ArrowDownWideNarrow, ArrowLeft, BellPlus, Download, FolderOpen, Loader2, MapPin, MoreHorizontal, Pencil, Phone, Plus, Search, Settings2, Sprout, Trash2, Upload, UserRound } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMyName } from "@/lib/team"
 import { GENUINENESS_LEVELS, HANDLERS, LEAD_STATUSES, type Handler, type Lead, type LeadCategory, type LeadStatus } from "@/lib/types"
@@ -24,6 +24,8 @@ import { CallStatusCell } from "./CallStatusCell"
 import { CategoriesDialog } from "./CategoriesDialog"
 import { exportLeadsToExcel } from "./export"
 import { ImportDialog } from "./import/ImportDialog"
+import { FollowUpFormDialog } from "@/features/followups/FollowUpFormDialog"
+import { VisitFormDialog } from "@/features/visits/VisitFormDialog"
 import { LeadFormDialog } from "./LeadFormDialog"
 import {
   COMMON_REMARKS, GENUINENESS_STYLES, GREEN_GROUPS, GREEN_STATUSES, NORMAL_STATUSES, REMARKS_LIST_ID, STATUS_STYLES,
@@ -65,6 +67,9 @@ export function LeadsPage() {
   const [editing, setEditing] = useState<Lead | "new" | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<string[] | null>(null)
+  // Lead a follow-up / visit is being scheduled for (from the row menu).
+  const [followUpFor, setFollowUpFor] = useState<Lead | null>(null)
+  const [visitFor, setVisitFor] = useState<Lead | null>(null)
   const [busy, setBusy] = useState(false)
 
   const load = useCallback(
@@ -347,6 +352,8 @@ export function LeadsPage() {
         ) : (
           <DropdownMenuItem onSelect={() => setStatus([l.id], GREEN_STAGE)}><Sprout className="text-success" /> Mark green</DropdownMenuItem>
         )}
+        <DropdownMenuItem onSelect={() => setFollowUpFor(l)}><BellPlus /> Set follow-up</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setVisitFor(l)}><MapPin /> Schedule visit</DropdownMenuItem>
         <DropdownMenuSub>
           <DropdownMenuSubTrigger><Sprout className="text-success" /> Stage</DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
@@ -799,6 +806,21 @@ export function LeadsPage() {
           </div>
         </>
       )}
+
+      <FollowUpFormDialog
+        open={followUpFor !== null}
+        onOpenChange={(o) => !o && setFollowUpFor(null)}
+        lead={followUpFor}
+        defaultOwner={myName}
+        onSaved={() => void load()}
+      />
+      <VisitFormDialog
+        open={visitFor !== null}
+        onOpenChange={(o) => !o && setVisitFor(null)}
+        lead={visitFor}
+        defaultOwner={myName}
+        onSaved={() => void load()}
+      />
 
       <datalist id={REMARKS_LIST_ID}>
         {remarkSuggestions.map((r) => <option key={r} value={r} />)}

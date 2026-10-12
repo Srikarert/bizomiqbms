@@ -4,9 +4,11 @@ import { AppLayout } from "@/components/layout/AppLayout"
 import { PageHeader } from "@/components/layout/PageHeader"
 import { AuthGate } from "@/features/auth/AuthGate"
 import { ChatPage } from "@/features/chat/ChatPage"
+import { FollowUpsPage } from "@/features/followups/FollowUpsPage"
 import { LeadsPage } from "@/features/leads/LeadsPage"
 import { MeetingsPage } from "@/features/meetings/MeetingsPage"
 import { SettingsPage } from "@/features/settings/SettingsPage"
+import { VisitsPage } from "@/features/visits/VisitsPage"
 import { useRoute, type Route } from "@/lib/router"
 
 const TITLES: Record<Route, string> = {
@@ -16,6 +18,7 @@ const TITLES: Record<Route, string> = {
   projects: "Projects",
   tasks: "Tasks",
   "follow-ups": "Follow-ups",
+  visits: "Visits",
   chat: "Team chat",
   meetings: "Meetings",
   settings: "Settings",
@@ -38,6 +41,10 @@ function Shell({ session }: { session: Session }) {
         <SettingsPage session={session} />
       ) : route === "leads" ? (
         <LeadsPage />
+      ) : route === "follow-ups" ? (
+        <FollowUpsPage />
+      ) : route === "visits" ? (
+        <VisitsPage />
       ) : route === "chat" ? (
         <ChatPage session={session} />
       ) : route === "meetings" ? (

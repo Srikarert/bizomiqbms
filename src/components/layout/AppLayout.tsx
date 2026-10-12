@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react"
 import {
-  BellRing, Briefcase, Building2, CheckSquare, LayoutDashboard, Menu, MessageSquare, Settings, Users, Video,
+  BellRing, Briefcase, Building2, CheckSquare, LayoutDashboard, MapPin, Menu, MessageSquare, Settings, Users, Video,
   type LucideIcon,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -15,6 +15,7 @@ const NAV: { route: Route; label: string; icon: LucideIcon }[] = [
   { route: "projects", label: "Projects", icon: Briefcase },
   { route: "tasks", label: "Tasks", icon: CheckSquare },
   { route: "follow-ups", label: "Follow-ups", icon: BellRing },
+  { route: "visits", label: "Visits", icon: MapPin },
   { route: "chat", label: "Team chat", icon: MessageSquare },
   { route: "meetings", label: "Meetings", icon: Video },
   { route: "settings", label: "Settings", icon: Settings },

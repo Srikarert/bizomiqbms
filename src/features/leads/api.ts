@@ -71,13 +71,13 @@ export async function searchLeads(q: string) {
   const term = q.trim().replace(/[%,()*\\]/g, " ").trim()
   let query = supabase
     .from("leads")
-    .select("id,company_name,contact_name,phone,status,call_status,owner,lead_score,genuineness")
+    .select("id,company_name,contact_name,phone,status,location,call_status,owner,lead_score,genuineness")
     .order("created_at", { ascending: false })
     .limit(20)
   if (term) query = query.or(`company_name.ilike.%${term}%,contact_name.ilike.%${term}%,phone.ilike.%${term}%`)
   const { data, error } = await query
   if (error) throw error
-  return data as (Pick<Lead, "id" | "company_name" | "contact_name" | "phone" | "status" | "call_status" | "owner" | "lead_score" | "genuineness">)[]
+  return data as (Pick<Lead, "id" | "company_name" | "contact_name" | "phone" | "status" | "location" | "call_status" | "owner" | "lead_score" | "genuineness">)[]
 }
 
 // ---------------------------------------------------------------------------

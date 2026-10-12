@@ -8,6 +8,7 @@ export interface LeadLite {
   company_name: string
   phone: string | null
   status: LeadStatus
+  location?: string | null
   call_status?: string | null
   owner?: Handler | null
   lead_score?: number | null
